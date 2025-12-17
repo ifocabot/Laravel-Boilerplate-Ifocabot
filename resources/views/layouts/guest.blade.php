@@ -38,7 +38,7 @@
                         </svg>
                     </div>
                     <h1 class="text-2xl font-bold text-gray-800 tracking-tight">HAHA<span
-                            class="text-indigo-600">HRMS</span></h1>
+                            class="text-indigo-600">HIHI</span></h1>
                 </div>
 
                 <!-- Content Slot -->

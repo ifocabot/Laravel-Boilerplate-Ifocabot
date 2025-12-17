@@ -7,6 +7,8 @@ use App\Http\Controllers\Admin\PermissionController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\AccessControlDashboardController;
+use App\Http\Controllers\MasterData\General\DepartmentController;
+use App\Http\Controllers\MasterData\General\LocationController;
 
 Route::get('/', function () {
     return ('hello');
@@ -53,5 +55,20 @@ Route::middleware('auth')->prefix('access-control')->name('access-control.')->gr
     Route::get('dashboard', [AccessControlDashboardController::class, 'index'])->name('dashboard');
 });
 
+Route::middleware(['auth'])->prefix('master-data/general')->name('master-data.general.')->group(function () {
+    Route::get('departments', [DepartmentController::class, 'index'])->name('departments.index');
+    Route::post('departments', [DepartmentController::class, 'store'])->name('departments.store');
+    Route::put('departments/{department}', [DepartmentController::class, 'update'])->name('departments.update');
+    Route::delete('departments/{department}', [DepartmentController::class, 'destroy'])->name('departments.destroy');
+});
+
+Route::middleware(['auth'])->prefix('master-data/general')->name('master-data.general.')->group(function () {
+    Route::get('locations', [LocationController::class, 'index'])->name('locations.index');
+    Route::post('locations', [LocationController::class, 'store'])->name('locations.store');
+    Route::put('locations/{location}', [LocationController::class, 'update'])->name('locations.update');
+    Route::delete('locations/{location}', [LocationController::class, 'destroy'])->name('locations.destroy');
+    Route::post('locations/check-geofence', [LocationController::class, 'checkGeofence'])
+        ->name('locations.check-geofence');
+});
 
 require __DIR__ . '/auth.php';

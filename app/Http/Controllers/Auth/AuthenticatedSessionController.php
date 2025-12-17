@@ -26,10 +26,24 @@ class AuthenticatedSessionController extends Controller
     {
         $request->authenticate();
 
+        $user = auth()->user();
+
+        if ($user && $user->is_active === 'inactive') {
+            Auth::guard('web')->logout();
+
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')->withErrors([
+                'email' => 'Your account is not active. Please contact support.',
+            ]);
+        }
+
         $request->session()->regenerate();
 
-        auth()->user()->update([
-            'last_login_at' => now()
+        $user->update([
+            'last_login_at' => now(),
+            'last_login_ip' => $request->ip(),
         ]);
 
         return redirect()->intended(route('dashboard', absolute: false));

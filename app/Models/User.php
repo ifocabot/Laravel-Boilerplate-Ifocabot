@@ -9,6 +9,7 @@ use Illuminate\Notifications\Notifiable;
 use OwenIt\Auditing\Contracts\Auditable; // 1. Import Contract
 use OwenIt\Auditing\Auditable as AuditableTrait; // 2. Import Trait
 use Spatie\Permission\Traits\HasRoles;
+use Illuminate\Database\Eloquent\Relations\HasMany; // Add this import
 
 class User extends Authenticatable implements Auditable
 {
@@ -25,6 +26,7 @@ class User extends Authenticatable implements Auditable
         'email',
         'password',
         'last_login_at',
+        'last_login_ip',
     ];
 
     protected $auditExclude = [
@@ -53,5 +55,10 @@ class User extends Authenticatable implements Auditable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function managedDepartments(): HasMany
+    {
+        return $this->hasMany(Department::class, 'manager_id');
     }
 }

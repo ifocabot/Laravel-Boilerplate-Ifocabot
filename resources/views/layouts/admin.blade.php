@@ -48,7 +48,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                <span>HAHA<span class="text-gray-800">HIHI</span></span>
+                <span>{{ config('app.name') }}</span>
             </a>
             <button @click="sidebarOpen = false" class="lg:hidden text-gray-500 hover:text-gray-700">
                 <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -120,7 +120,7 @@
                         Permissions
                     </a>
                     <a href="{{ route('access-control.users.index') }}"
-                        class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors {{ request()->routeIs('access-control.user.*') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
+                        class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors {{ request()->routeIs('access-control.users.*') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
                         Users
                     </a>
                     <a href="{{ route('access-control.audit-logs.index') }}"
@@ -128,14 +128,61 @@
                         Audit Logs
                     </a>
                 </div>
-                <a href="#"
-                    class="flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-600 rounded-xl hover:bg-gray-50 hover:text-indigo-600 transition-colors">
-                    <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stro ke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+
+            </div>
+
+            <!-- Master Data -->
+            <div x-data="{ open: {{ request()->routeIs('master-data.*') ? 'true' : 'false' }} }">
+                <button @click="open = !open"
+                    class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-colors text-gray-600 hover:bg-gray-50 hover:text-indigo-600">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        Master Data
+                    </div>
+                    <svg :class="open ? 'rotate-180' : ''"
+                        class="w-4 h-4 flex-shrink-0 transition-transform duration-200" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                     </svg>
-                    Menu
-                </a>
+                </button>
+
+                <div x-show="open" x-cloak x-transition:enter="transition ease-out duration-100"
+                    x-transition:enter-start="transform opacity-0 scale-95"
+                    x-transition:enter-end="transform opacity-100 scale-100" class="space-y-1 pl-4 mt-1">
+
+                    <!-- Nested Inventory -->
+                    <div x-data="{ openGeneral: {{ request()->routeIs('master-data.general.*') ? 'true' : 'false' }} }">
+                        <button @click="openGeneral = !openGeneral"
+                            class="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors">
+                            <span class="flex items-center gap-2">General</span>
+                            <svg :class="openGeneral ? 'rotate-180' : ''"
+                                class="w-3 h-3 flex-shrink-0 transition-transform duration-200" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+
+                        <div x-show="openGeneral" x-cloak class="pl-4 mt-1 space-y-1">
+                            <a href="{{route('master-data.general.departments.index')}}"
+                                class="block px-4 py-2 text-sm text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg">
+                                Departments
+                            </a>
+                            <a href="#"
+                                class="block px-4 py-2 text-sm text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg">
+                                Stock Movement
+                            </a>
+                        </div>
+                    </div>
+
+                    <a href="#"
+                        class="flex items-center gap-2 px-4 py-2 text-sm text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors">
+                        Vendor
+                    </a>
+                </div>
             </div>
         </nav>
 
@@ -240,7 +287,7 @@
                 </button>
 
                 <!-- Breadcrumb -->
-                <nav class="flex items-center gap-2 text-sm">
+                <nav class="flex items-center gap-2 text-sm overflow-x-auto whitespace-nowrap">
                     <a href="{{ route('dashboard') }}" class="text-gray-500 hover:text-gray-700">Home</a>
                     @php
                         $segments = request()->segments();
@@ -438,7 +485,9 @@
         </main>
     </div>
 
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     @stack('scripts')
+
 </body>
 
 </html>
