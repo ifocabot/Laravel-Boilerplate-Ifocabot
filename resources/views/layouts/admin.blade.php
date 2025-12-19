@@ -71,6 +71,130 @@
                 Dashboard
             </a>
 
+            <!-- Master Data -->
+            <div x-data="{ open: {{ request()->routeIs('hris.*') ? 'true' : 'false' }} }">
+                <button @click="open = !open"
+                    class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-colors text-gray-600 hover:bg-gray-50 hover:text-indigo-600">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        HRIS
+                    </div>
+                    <svg :class="open ? 'rotate-180' : ''"
+                        class="w-4 h-4 flex-shrink-0 transition-transform duration-200" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+
+                <div x-show="open" x-cloak x-transition:enter="transition ease-out duration-100"
+                    x-transition:enter-start="transform opacity-0 scale-95"
+                    x-transition:enter-end="transform opacity-100 scale-100" class="space-y-1 pl-4 mt-1">
+
+                    <!-- Nested Inventory -->
+                    <div x-data="{ openGeneral: {{ request()->routeIs('hris.employees.*') ? 'true' : 'false' }} }">
+                        <button @click="openGeneral = !openGeneral"
+                            class="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors">
+                            <span class="flex items-center gap-2">Employee</span>
+                            <svg :class="openGeneral ? 'rotate-180' : ''"
+                                class="w-3 h-3 flex-shrink-0 transition-transform duration-200" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+
+                        <div x-show="openGeneral" x-cloak class="pl-4 mt-1 space-y-1">
+                            <a href="{{ route('hris.employees.index') }}"
+                                class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors {{ request()->routeIs('hris.employees.index') || request()->routeIs('hris.employees.show') || request()->routeIs('hris.employees.create') || request()->routeIs('hris.employees.edit') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
+                                Data Karyawan
+                            </a>
+                            <a href="{{ route('hris.employees.index') }}?status=active"
+                                class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors text-gray-500 hover:text-indigo-600 hover:bg-gray-50">
+                                Karyawan Aktif
+                            </a>
+                            <a href="{{ route('hris.employees.index') }}?status=resigned"
+                                class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors text-gray-500 hover:text-indigo-600 hover:bg-gray-50">
+                                Karyawan Resign
+                            </a>
+
+                        </div>
+                    </div>
+
+                    {{-- PAYROLL MENU - WITH EMPLOYEE SALARY MANAGEMENT --}}
+                    <div x-data="{ openPayroll: {{ request()->routeIs('hris.payroll.*') ? 'true' : 'false' }} }">
+                        <button @click="openPayroll = !openPayroll"
+                            class="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors">
+                            <span class="flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                                Payroll
+                            </span>
+                            <svg :class="openPayroll ? 'rotate-180' : ''"
+                                class="w-3 h-3 flex-shrink-0 transition-transform duration-200" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        <div x-show="openPayroll" x-cloak class="pl-4 mt-1 space-y-1">
+                            {{-- NEW: Employee Salary Management --}}
+                            <a href="{{ route('hris.payroll.employee-salaries.index') }}"
+                                class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors {{ request()->routeIs('hris.payroll.employee-salaries.*') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                                Kelola Gaji Karyawan
+                            </a>
+
+                            {{-- Periode Payroll --}}
+                            <a href="{{ route('hris.payroll.periods.index') }}"
+                                class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors {{ request()->routeIs('hris.payroll.periods.*') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
+                                Periode Payroll
+                            </a>
+
+                            {{-- Master Komponen --}}
+                            <a href="{{ route('hris.payroll.components.index') }}"
+                                class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors {{ request()->routeIs('hris.payroll.components.*') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
+                                Master Komponen
+                            </a>
+                        </div>
+                    </div>
+
+                    {{-- ATTENDANCE MENU --}}
+                    <div x-data="{ openAttendance: {{ request()->routeIs('hris.attendance.*') ? 'true' : 'false' }} }">
+                        <button @click="openAttendance = !openAttendance"
+                            class="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors">
+                            <span class="flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                                Attendance
+                            </span>
+                            <svg :class="openAttendance ? 'rotate-180' : ''"
+                                class="w-3 h-3 flex-shrink-0 transition-transform duration-200" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        <div x-show="openAttendance" x-cloak class="pl-4 mt-1 space-y-1">
+                            {{-- Shifts Management --}}
+                            <a href="{{ route('hris.attendance.shifts.index') }}"
+                                class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors {{ request()->routeIs('hris.attendance.shifts.*') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
+                                Shifts Management
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <a href="#"
                 class="flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-600 rounded-xl hover:bg-gray-50 hover:text-indigo-600 transition-colors">
                 <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -168,20 +292,39 @@
 
                         <div x-show="openGeneral" x-cloak class="pl-4 mt-1 space-y-1">
                             <a href="{{route('master-data.general.departments.index')}}"
-                                class="block px-4 py-2 text-sm text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg">
+                                class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors {{ request()->routeIs('master-data.general.departments.index') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
                                 Departments
                             </a>
-                            <a href="#"
-                                class="block px-4 py-2 text-sm text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg">
-                                Stock Movement
+                            <a href="{{route('master-data.general.locations.index')}}"
+                                class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors {{ request()->routeIs('master-data.general.locations.index') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
+                                Locations
                             </a>
                         </div>
                     </div>
 
-                    <a href="#"
-                        class="flex items-center gap-2 px-4 py-2 text-sm text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors">
-                        Vendor
-                    </a>
+                    <div x-data="{ openGeneral: {{ request()->routeIs('master-data.hris.*') ? 'true' : 'false' }} }">
+                        <button @click="openGeneral = !openGeneral"
+                            class="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors">
+                            <span class="flex items-center gap-2">HRIS</span>
+                            <svg :class="openGeneral ? 'rotate-180' : ''"
+                                class="w-3 h-3 flex-shrink-0 transition-transform duration-200" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+
+                        <div x-show="openGeneral" x-cloak class="pl-4 mt-1 space-y-1">
+                            <a href="{{route('master-data.hris.levels.index')}}"
+                                class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors {{ request()->routeIs('master-data.hris.levels.index') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
+                                Levels
+                            </a>
+                            <a href="{{route('master-data.hris.positions.index')}}"
+                                class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors {{ request()->routeIs('master-data.hris.positions.index') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
+                                Positions
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </nav>
