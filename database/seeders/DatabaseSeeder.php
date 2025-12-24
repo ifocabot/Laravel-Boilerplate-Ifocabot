@@ -2,24 +2,54 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
      * Seed the application's database.
+     * 
+     * Run with: php artisan db:seed
+     * Fresh seed: php artisan migrate:fresh --seed
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        $this->command->info('');
+        $this->command->info('🚀 Starting Database Seeding...');
+        $this->command->info('================================');
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        // Run seeders in dependency order
+        $this->call([
+                // 1. Master Data (no dependencies)
+            MasterDataSeeder::class,        // Departments, Positions, Levels, Locations, Holidays
+
+                // 2. Users & Roles (no dependencies)
+            UserRoleSeeder::class,          // Users, Roles, Permissions
+
+                // 3. Employee Data (depends on master data)
+            EmployeeSeeder::class,          // Employees with careers
+
+                // 4. Shifts & Schedules
+            ShiftSeeder::class,             // Work shifts
+
+                // 5. Leave & Attendance
+            LeaveTypeSeeder::class,         // Leave types
+
+                // 6. Approval Workflows
+            ApprovalWorkflowSeeder::class,  // Approval workflows with steps
+
+                // 7. Payroll
+            PayrollComponentSeeder::class,  // Payroll components
         ]);
+
+        $this->command->info('');
+        $this->command->info('================================');
+        $this->command->info('✅ Database seeding completed!');
+        $this->command->info('');
+        $this->command->info('📧 Default Logins:');
+        $this->command->info('   superadmin@company.com / password');
+        $this->command->info('   admin@company.com / password');
+        $this->command->info('   hr@company.com / password');
+        $this->command->info('');
     }
 }

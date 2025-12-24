@@ -538,16 +538,23 @@
                         <div>
                             <label for="level_id" class="block text-sm font-semibold text-gray-700 mb-2">
                                 Level/Grade <span class="text-red-500">*</span>
+                                <span class="ml-1 text-gray-400 cursor-help" title="Tingkat jabatan dalam hierarki organisasi. Menentukan alur approval.">ⓘ</span>
                             </label>
-                            <select name="level_id" id="level_id" required
+                            <select name="level_id" id="level_id" required x-model="selectedLevelId"
+                                @change="updateManagerOptions()"
                                 class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all @error('level_id') border-red-500 @enderror">
                                 <option value="">Pilih Level</option>
                                 @foreach($levels as $level)
-                                    <option value="{{ $level->id }}" {{ old('level_id') == $level->id ? 'selected' : '' }}>
+                                    <option value="{{ $level->id }}" 
+                                        data-approval-order="{{ $level->approval_order }}"
+                                        {{ old('level_id') == $level->id ? 'selected' : '' }}>
                                         {{ $level->grade_code }} - {{ $level->name }}
                                     </option>
                                 @endforeach
                             </select>
+                            <p class="mt-1.5 text-xs text-gray-500">
+                                Hierarki: Staff → Senior → Supervisor → Manager → GM → Direktur
+                            </p>
                             @error('level_id')
                                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                             @enderror
@@ -557,6 +564,7 @@
                         <div>
                             <label for="branch_id" class="block text-sm font-semibold text-gray-700 mb-2">
                                 Lokasi/Cabang Kerja
+                                <span class="ml-1 text-gray-400 cursor-help" title="Lokasi fisik tempat karyawan bekerja.">ⓘ</span>
                             </label>
                             <select name="branch_id" id="branch_id"
                                 class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all @error('branch_id') border-red-500 @enderror">
@@ -572,23 +580,43 @@
                             @enderror
                         </div>
 
-                        {{-- Manager --}}
-                        <div>
+                        {{-- Manager - Dynamic based on Level --}}
+                        <div x-show="!isExecutiveLevel" x-transition>
                             <label for="manager_id" class="block text-sm font-semibold text-gray-700 mb-2">
                                 Manager/Atasan Langsung
+                                <span class="ml-1 text-gray-400 cursor-help" title="Atasan yang akan approve permintaan karyawan ini. Hanya menampilkan employee dengan level lebih tinggi.">ⓘ</span>
                             </label>
                             <select name="manager_id" id="manager_id"
                                 class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all @error('manager_id') border-red-500 @enderror">
                                 <option value="">Pilih Manager</option>
-                                @foreach($employees as $emp)
-                                    <option value="{{ $emp->id }}" {{ old('manager_id') == $emp->id ? 'selected' : '' }}>
-                                        {{ $emp->full_name }} ({{ $emp->nik }})
-                                    </option>
-                                @endforeach
+                                <template x-for="emp in filteredManagers" :key="emp.id">
+                                    <option :value="emp.id" x-text="emp.full_name + ' (' + emp.nik + ') - ' + (emp.level_name || 'No Level')"></option>
+                                </template>
                             </select>
+                            <p class="mt-1.5 text-xs text-gray-500" x-show="filteredManagers.length > 0">
+                                <span x-text="filteredManagers.length"></span> karyawan dengan level lebih tinggi tersedia
+                            </p>
+                            <p class="mt-1.5 text-xs text-amber-600" x-show="filteredManagers.length === 0 && selectedLevelId">
+                                ⚠️ Tidak ada karyawan dengan level lebih tinggi. Pilih level lebih rendah atau manager akan di-skip saat approval.
+                            </p>
                             @error('manager_id')
                                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                             @enderror
+                        </div>
+
+                        {{-- Executive Notice --}}
+                        <div x-show="isExecutiveLevel" x-transition class="bg-indigo-50 rounded-xl p-4">
+                            <div class="flex items-start gap-3">
+                                <svg class="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <div>
+                                    <p class="text-sm font-medium text-indigo-900">Level Eksekutif</p>
+                                    <p class="text-xs text-indigo-700 mt-0.5">
+                                        Karyawan dengan level GM/Direktur tidak memerlukan atasan langsung untuk approval.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -680,6 +708,45 @@
                     currentStep: 1,
                     createUserAccount: {{ old('create_user_account') ? 'true' : 'false' }},
                     nikValue: '{{ old('nik', $autoNik) }}',
+                    
+                    // ⭐ Level-based manager filtering
+                    selectedLevelId: '{{ old('level_id', '') }}',
+                    allEmployees: @json($employees),
+                    levels: @json($levels->map(fn($l) => ['id' => $l->id, 'approval_order' => $l->approval_order, 'name' => $l->name])),
+                    filteredManagers: [],
+                    isExecutiveLevel: false,
+                    executiveThreshold: 5, // GM and above (approval_order >= 5)
+
+                    init() {
+                        // Initialize manager filter if level is already selected
+                        if (this.selectedLevelId) {
+                            this.updateManagerOptions();
+                        }
+                    },
+
+                    // Get approval_order for selected level
+                    getSelectedLevelOrder() {
+                        const level = this.levels.find(l => l.id == this.selectedLevelId);
+                        return level ? level.approval_order : 0;
+                    },
+
+                    // Update manager dropdown based on selected level
+                    updateManagerOptions() {
+                        const selectedOrder = this.getSelectedLevelOrder();
+                        
+                        // Check if executive level (GM or higher)
+                        this.isExecutiveLevel = selectedOrder >= this.executiveThreshold;
+                        
+                        if (this.isExecutiveLevel) {
+                            this.filteredManagers = [];
+                            return;
+                        }
+
+                        // Filter employees: only show those with higher approval_order
+                        this.filteredManagers = this.allEmployees.filter(emp => {
+                            return emp.approval_order > selectedOrder;
+                        }).sort((a, b) => a.approval_order - b.approval_order);
+                    },
 
                     nextStep() {
                         if (this.currentStep < 4) {

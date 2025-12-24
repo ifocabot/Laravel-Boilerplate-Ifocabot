@@ -302,22 +302,53 @@
                         </div>
 
                         {{-- Modal Body --}}
-                        <div class="px-6 py-6 space-y-6">
+                        <div class="px-6 py-6 space-y-6" x-data="{ 
+                            selectedComponent: null,
+                            components: {
+                                @foreach($earningComponents->merge($deductionComponents) as $comp)
+                                {{ $comp->id }}: {
+                                    calculationType: '{{ $comp->calculation_type }}',
+                                    percentageValue: {{ $comp->percentage_value ?? 'null' }},
+                                    ratePerDay: {{ $comp->rate_per_day ?? 'null' }},
+                                    ratePerHour: {{ $comp->rate_per_hour ?? 'null' }},
+                                    notes: '{{ addslashes($comp->calculation_notes ?? '') }}'
+                                },
+                                @endforeach
+                            },
+                            selectComponent(id) {
+                                this.selectedComponent = this.components[id] || null;
+                            },
+                            needsAmount() {
+                                return !this.selectedComponent || this.selectedComponent.calculationType === 'fixed';
+                            }
+                        }">
                             {{-- Component Selection --}}
                             <div>
                                 <label class="block text-sm font-semibold text-gray-700 mb-2">
                                     Pilih Komponen <span class="text-red-500">*</span>
                                 </label>
-                                <div class="space-y-2">
+                                <div class="space-y-2 max-h-72 overflow-y-auto">
                                     <div>
                                         <p class="text-xs font-semibold text-gray-600 mb-2 uppercase">Earnings / Pendapatan</p>
                                         @foreach($earningComponents as $component)
                                             <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer mb-2">
                                                 <input type="radio" name="component_id" value="{{ $component->id }}" required
+                                                    @change="selectComponent({{ $component->id }})"
                                                     class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
                                                 <div class="flex-1">
                                                     <p class="text-sm font-semibold text-gray-900">{{ $component->name }}</p>
                                                     <p class="text-xs text-gray-500">{{ $component->code }}</p>
+                                                    @if($component->calculation_type !== 'fixed')
+                                                        <p class="text-xs text-indigo-600 mt-1">
+                                                            @if($component->calculation_type === 'percentage')
+                                                                📊 {{ $component->percentage_value }}% dari Gaji Pokok
+                                                            @elseif($component->calculation_type === 'daily_rate')
+                                                                📅 Rp {{ number_format($component->rate_per_day ?? 0, 0, ',', '.') }}/hari
+                                                            @elseif($component->calculation_type === 'hourly_rate')
+                                                                ⏰ Rp {{ number_format($component->rate_per_hour ?? 0, 0, ',', '.') }}/jam
+                                                            @endif
+                                                        </p>
+                                                    @endif
                                                 </div>
                                                 <span class="text-xs px-2 py-1 rounded bg-green-100 text-green-700">
                                                     {{ $component->category_label }}
@@ -331,10 +362,22 @@
                                         @foreach($deductionComponents as $component)
                                             <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer mb-2">
                                                 <input type="radio" name="component_id" value="{{ $component->id }}" required
+                                                    @change="selectComponent({{ $component->id }})"
                                                     class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
                                                 <div class="flex-1">
                                                     <p class="text-sm font-semibold text-gray-900">{{ $component->name }}</p>
                                                     <p class="text-xs text-gray-500">{{ $component->code }}</p>
+                                                    @if($component->calculation_type !== 'fixed')
+                                                        <p class="text-xs text-indigo-600 mt-1">
+                                                            @if($component->calculation_type === 'percentage')
+                                                                📊 {{ $component->percentage_value }}% dari Gaji Pokok
+                                                            @elseif($component->calculation_type === 'daily_rate')
+                                                                📅 Rp {{ number_format($component->rate_per_day ?? 0, 0, ',', '.') }}/hari
+                                                            @elseif($component->calculation_type === 'hourly_rate')
+                                                                ⏰ Rp {{ number_format($component->rate_per_hour ?? 0, 0, ',', '.') }}/jam
+                                                            @endif
+                                                        </p>
+                                                    @endif
                                                 </div>
                                                 <span class="text-xs px-2 py-1 rounded bg-red-100 text-red-700">
                                                     {{ $component->category_label }}
@@ -345,15 +388,55 @@
                                 </div>
                             </div>
 
+                            {{-- Calculation Info Alert --}}
+                            <template x-if="selectedComponent && selectedComponent.calculationType !== 'fixed'">
+                                <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                                    <div class="flex gap-3">
+                                        <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <div class="flex-1">
+                                            <h4 class="text-sm font-semibold text-blue-900 mb-1">Perhitungan Otomatis</h4>
+                                            <p class="text-sm text-blue-700" x-text="selectedComponent.notes || 'Komponen ini dihitung secara otomatis'"></p>
+                                            <p class="text-xs text-blue-600 mt-1">
+                                                <span x-show="selectedComponent.calculationType === 'percentage'">
+                                                    Jumlah = <span x-text="selectedComponent.percentageValue"></span>% × Gaji Pokok
+                                                </span>
+                                                <span x-show="selectedComponent.calculationType === 'daily_rate'">
+                                                    Jumlah = Rp <span x-text="selectedComponent.ratePerDay?.toLocaleString('id')"></span> × Hari Kerja
+                                                </span>
+                                                <span x-show="selectedComponent.calculationType === 'hourly_rate'">
+                                                    Jumlah = Rp <span x-text="selectedComponent.ratePerHour?.toLocaleString('id')"></span> × Jam
+                                                </span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {{-- Amount --}}
-                                <div>
+                                {{-- Amount (only for fixed type) --}}
+                                <div x-show="needsAmount()">
                                     <label for="amount" class="block text-sm font-semibold text-gray-700 mb-2">
-                                        Jumlah <span class="text-red-500">*</span>
+                                        Jumlah <span class="text-red-500" x-show="needsAmount()">*</span>
                                     </label>
-                                    <input type="number" name="amount" id="amount" required step="0.01" min="0"
+                                    <input type="number" name="amount" id="amount" step="0.01" min="0"
+                                        :required="needsAmount()"
                                         class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                                         placeholder="5000000">
+                                    <p class="mt-1 text-xs text-gray-500">Jumlah tetap per bulan (IDR)</p>
+                                </div>
+
+                                {{-- Auto-calculated notice --}}
+                                <div x-show="!needsAmount()">
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                        Jumlah
+                                    </label>
+                                    <div class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-500 text-sm">
+                                        Dihitung otomatis saat payroll
+                                    </div>
+                                    <input type="hidden" name="amount" value="0">
                                 </div>
 
                                 {{-- Unit --}}
@@ -454,145 +537,169 @@
                     x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                     class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
 
-                    <template x-if="selectedComponentId">
-                        @foreach($employee->payrollComponents as $empComponent)
-                            <form x-show="selectedComponentId === {{ $empComponent->id }}" 
-                                action="{{ route('hris.payroll.employee-components.update', [$employee->id, $empComponent->id]) }}" 
-                                method="POST">
-                                @csrf
-                                @method('PUT')
+                    @foreach($employee->payrollComponents as $empComponent)
+                        <form x-show="selectedComponentId === {{ $empComponent->id }}" 
+                            action="{{ route('hris.payroll.employee-components.update', [$employee->id, $empComponent->id]) }}" 
+                            method="POST">
+                            @csrf
+                            @method('PUT')
 
-                                {{-- Modal Header --}}
-                                <div class="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-5">
-                                    <div class="flex items-center justify-between">
-                                        <div class="flex items-center gap-3">
-                                            <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                                                <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                </svg>
-                                            </div>
-                                            <div>
-                                                <h3 class="text-lg font-bold text-white">Edit Komponen Gaji</h3>
-                                                <p class="text-sm text-indigo-100">{{ $empComponent->component->name }}</p>
+                            {{-- Modal Header --}}
+                            <div class="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-5">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                                            <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-lg font-bold text-white">Edit Komponen Gaji</h3>
+                                            <p class="text-sm text-indigo-100">{{ $empComponent->component->name }}</p>
+                                        </div>
+                                    </div>
+                                    <button @click="closeEditModal()" type="button"
+                                        class="text-white/80 hover:text-white transition-colors">
+                                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {{-- Modal Body --}}
+                            <div class="px-6 py-6 space-y-6">
+                                <input type="hidden" name="component_id" value="{{ $empComponent->component_id }}">
+
+                                {{-- Component Info --}}
+                                @if($empComponent->component->calculation_type !== 'fixed')
+                                    <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                                        <div class="flex gap-3">
+                                            <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <div class="flex-1">
+                                                <h4 class="text-sm font-semibold text-blue-900 mb-1">Perhitungan Otomatis</h4>
+                                                <p class="text-sm text-blue-700">{{ $empComponent->component->calculation_notes ?? 'Komponen ini dihitung secara otomatis' }}</p>
                                             </div>
                                         </div>
-                                        <button @click="closeEditModal()" type="button"
-                                            class="text-white/80 hover:text-white transition-colors">
-                                            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
                                     </div>
-                                </div>
+                                @endif
 
-                                {{-- Modal Body --}}
-                                <div class="px-6 py-6 space-y-6">
-                                    <input type="hidden" name="component_id" value="{{ $empComponent->component_id }}">
-
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {{-- Amount --}}
-                                        <div>
-                                            <label for="edit_amount_{{ $empComponent->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
-                                                Jumlah <span class="text-red-500">*</span>
-                                            </label>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {{-- Amount (show for fixed, optional for others) --}}
+                                    <div>
+                                        <label for="edit_amount_{{ $empComponent->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                            Jumlah 
+                                            @if($empComponent->component->calculation_type === 'fixed')
+                                                <span class="text-red-500">*</span>
+                                            @endif
+                                        </label>
+                                        @if($empComponent->component->calculation_type === 'fixed')
                                             <input type="number" name="amount" id="edit_amount_{{ $empComponent->id }}" 
                                                 required step="0.01" min="0" value="{{ $empComponent->amount }}"
                                                 class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-                                        </div>
-
-                                        {{-- Unit --}}
-                                        <div>
-                                            <label for="edit_unit_{{ $empComponent->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
-                                                Unit
-                                            </label>
-                                            <input type="text" name="unit" id="edit_unit_{{ $empComponent->id }}" 
-                                                value="{{ $empComponent->unit }}"
-                                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-                                        </div>
-
-                                        {{-- Effective From --}}
-                                        <div>
-                                            <label for="edit_effective_from_{{ $empComponent->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
-                                                Efektif Dari <span class="text-red-500">*</span>
-                                            </label>
-                                            <input type="date" name="effective_from" id="edit_effective_from_{{ $empComponent->id }}" 
-                                                required value="{{ $empComponent->effective_from->format('Y-m-d') }}"
-                                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-                                        </div>
-
-                                        {{-- Effective To --}}
-                                        <div>
-                                            <label for="edit_effective_to_{{ $empComponent->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
-                                                Efektif Sampai
-                                            </label>
-                                            <input type="date" name="effective_to" id="edit_effective_to_{{ $empComponent->id }}"
-                                                value="{{ $empComponent->effective_to?->format('Y-m-d') }}"
-                                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-                                            <p class="mt-1 text-xs text-gray-500">Kosongkan untuk unlimited</p>
-                                        </div>
+                                        @else
+                                            <div class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-500 text-sm">
+                                                Dihitung otomatis saat payroll
+                                            </div>
+                                            <input type="hidden" name="amount" value="{{ $empComponent->amount }}">
+                                        @endif
                                     </div>
 
-                                    {{-- Is Active --}}
-                                    <div class="flex items-start gap-3">
-                                        <input type="checkbox" name="is_active" id="edit_is_active_{{ $empComponent->id }}" 
-                                            value="1" {{ $empComponent->is_active ? 'checked' : '' }}
-                                            class="w-5 h-5 mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                        <div class="flex-1">
-                                            <label for="edit_is_active_{{ $empComponent->id }}" class="text-sm font-semibold text-gray-900 cursor-pointer">
-                                                Active Component
-                                            </label>
-                                            <p class="text-xs text-gray-500 mt-0.5">
-                                                Komponen ini akan digunakan dalam perhitungan payroll
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {{-- Is Recurring --}}
-                                    <div class="flex items-start gap-3">
-                                        <input type="checkbox" name="is_recurring" id="edit_is_recurring_{{ $empComponent->id }}" 
-                                            value="1" {{ $empComponent->is_recurring ? 'checked' : '' }}
-                                            class="w-5 h-5 mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                        <div class="flex-1">
-                                            <label for="edit_is_recurring_{{ $empComponent->id }}" class="text-sm font-semibold text-gray-900 cursor-pointer">
-                                                Recurring Component
-                                            </label>
-                                            <p class="text-xs text-gray-500 mt-0.5">
-                                                Komponen ini akan otomatis masuk ke payroll setiap bulan
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {{-- Notes --}}
+                                    {{-- Unit --}}
                                     <div>
-                                        <label for="edit_notes_{{ $empComponent->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
-                                            Catatan
+                                        <label for="edit_unit_{{ $empComponent->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                            Unit
                                         </label>
-                                        <textarea name="notes" id="edit_notes_{{ $empComponent->id }}" rows="3"
-                                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                            placeholder="Catatan tambahan tentang komponen ini">{{ $empComponent->notes }}</textarea>
+                                        <input type="text" name="unit" id="edit_unit_{{ $empComponent->id }}" 
+                                            value="{{ $empComponent->unit }}"
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                                    </div>
+
+                                    {{-- Effective From --}}
+                                    <div>
+                                        <label for="edit_effective_from_{{ $empComponent->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                            Efektif Dari <span class="text-red-500">*</span>
+                                        </label>
+                                        <input type="date" name="effective_from" id="edit_effective_from_{{ $empComponent->id }}" 
+                                            required value="{{ $empComponent->effective_from->format('Y-m-d') }}"
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                                    </div>
+
+                                    {{-- Effective To --}}
+                                    <div>
+                                        <label for="edit_effective_to_{{ $empComponent->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                            Efektif Sampai
+                                        </label>
+                                        <input type="date" name="effective_to" id="edit_effective_to_{{ $empComponent->id }}"
+                                            value="{{ $empComponent->effective_to?->format('Y-m-d') }}"
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                                        <p class="mt-1 text-xs text-gray-500">Kosongkan untuk unlimited</p>
                                     </div>
                                 </div>
 
-                                {{-- Modal Footer --}}
-                                <div class="bg-gray-50 px-6 py-4 flex items-center justify-end gap-3 border-t border-gray-200">
-                                    <button @click="closeEditModal()" type="button"
-                                        class="px-5 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-xl transition-colors">
-                                        Batal
-                                    </button>
-                                    <button type="submit"
-                                        class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm">
-                                        <span class="flex items-center gap-2">
-                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                            </svg>
-                                            Update Komponen
-                                        </span>
-                                    </button>
+                                {{-- Is Active --}}
+                                <div class="flex items-start gap-3">
+                                    <input type="checkbox" name="is_active" id="edit_is_active_{{ $empComponent->id }}" 
+                                        value="1" {{ $empComponent->is_active ? 'checked' : '' }}
+                                        class="w-5 h-5 mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    <div class="flex-1">
+                                        <label for="edit_is_active_{{ $empComponent->id }}" class="text-sm font-semibold text-gray-900 cursor-pointer">
+                                            Active Component
+                                        </label>
+                                        <p class="text-xs text-gray-500 mt-0.5">
+                                            Komponen ini akan digunakan dalam perhitungan payroll
+                                        </p>
+                                    </div>
                                 </div>
-                            </form>
-                        @endforeach
-                    </template>
+
+                                {{-- Is Recurring --}}
+                                <div class="flex items-start gap-3">
+                                    <input type="checkbox" name="is_recurring" id="edit_is_recurring_{{ $empComponent->id }}" 
+                                        value="1" {{ $empComponent->is_recurring ? 'checked' : '' }}
+                                        class="w-5 h-5 mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    <div class="flex-1">
+                                        <label for="edit_is_recurring_{{ $empComponent->id }}" class="text-sm font-semibold text-gray-900 cursor-pointer">
+                                            Recurring Component
+                                        </label>
+                                        <p class="text-xs text-gray-500 mt-0.5">
+                                            Komponen ini akan otomatis masuk ke payroll setiap bulan
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {{-- Notes --}}
+                                <div>
+                                    <label for="edit_notes_{{ $empComponent->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                        Catatan
+                                    </label>
+                                    <textarea name="notes" id="edit_notes_{{ $empComponent->id }}" rows="3"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        placeholder="Catatan tambahan tentang komponen ini">{{ $empComponent->notes }}</textarea>
+                                </div>
+                            </div>
+
+                            {{-- Modal Footer --}}
+                            <div class="bg-gray-50 px-6 py-4 flex items-center justify-end gap-3 border-t border-gray-200">
+                                <button @click="closeEditModal()" type="button"
+                                    class="px-5 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-xl transition-colors">
+                                    Batal
+                                </button>
+                                <button type="submit"
+                                    class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm">
+                                    <span class="flex items-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        Update Komponen
+                                    </span>
+                                </button>
+                            </div>
+                        </form>
+                    @endforeach
                 </div>
             </div>
         </div>
@@ -618,99 +725,97 @@
                     x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                     class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
 
-                    <template x-if="selectedComponentId">
-                        @foreach($employee->payrollComponents as $empComponent)
-                            <form x-show="selectedComponentId === {{ $empComponent->id }}" 
-                                action="{{ route('hris.payroll.employee-components.deactivate', [$employee->id, $empComponent->id]) }}" 
-                                method="POST">
-                                @csrf
+                    @foreach($employee->payrollComponents as $empComponent)
+                        <form x-show="selectedComponentId === {{ $empComponent->id }}" 
+                            action="{{ route('hris.payroll.employee-components.deactivate', [$employee->id, $empComponent->id]) }}" 
+                            method="POST">
+                            @csrf
 
-                                {{-- Modal Header --}}
-                                <div class="bg-gradient-to-r from-yellow-500 to-orange-600 px-6 py-5">
-                                    <div class="flex items-center justify-between">
-                                        <div class="flex items-center gap-3">
-                                            <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                                                <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                                        d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                                                </svg>
-                                            </div>
-                                            <div>
-                                                <h3 class="text-lg font-bold text-white">Nonaktifkan Komponen</h3>
-                                                <p class="text-sm text-yellow-100">{{ $empComponent->component->name }}</p>
-                                            </div>
-                                        </div>
-                                        <button @click="closeDeactivateModal()" type="button"
-                                            class="text-white/80 hover:text-white transition-colors">
-                                            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {{-- Modal Body --}}
-                                <div class="px-6 py-6 space-y-6">
-                                    <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                                        <div class="flex gap-3">
-                                            <svg class="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                            </svg>
-                                            <div class="flex-1">
-                                                <h4 class="text-sm font-semibold text-yellow-900 mb-1">Perhatian</h4>
-                                                <p class="text-sm text-yellow-700">
-                                                    Komponen ini akan dinonaktifkan dan tidak akan digunakan dalam perhitungan payroll setelah tanggal yang ditentukan.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {{-- Effective To --}}
-                                    <div>
-                                        <label for="deactivate_effective_to_{{ $empComponent->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
-                                            Tanggal Berakhir <span class="text-red-500">*</span>
-                                        </label>
-                                        <input type="date" name="effective_to" id="deactivate_effective_to_{{ $empComponent->id }}" 
-                                            required min="{{ $empComponent->effective_from->format('Y-m-d') }}"
-                                            value="{{ now()->format('Y-m-d') }}"
-                                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-transparent">
-                                        <p class="mt-1 text-xs text-gray-500">
-                                            Minimal: {{ $empComponent->effective_from->format('d M Y') }}
-                                        </p>
-                                    </div>
-
-                                    {{-- Notes --}}
-                                    <div>
-                                        <label for="deactivate_notes_{{ $empComponent->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
-                                            Alasan Penonaktifan
-                                        </label>
-                                        <textarea name="notes" id="deactivate_notes_{{ $empComponent->id }}" rows="3"
-                                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                                            placeholder="Jelaskan alasan penonaktifan komponen ini..."></textarea>
-                                    </div>
-                                </div>
-
-                                {{-- Modal Footer --}}
-                                <div class="bg-gray-50 px-6 py-4 flex items-center justify-end gap-3 border-t border-gray-200">
-                                    <button @click="closeDeactivateModal()" type="button"
-                                        class="px-5 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-xl transition-colors">
-                                        Batal
-                                    </button>
-                                    <button type="submit"
-                                        class="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm">
-                                        <span class="flex items-center gap-2">
-                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            {{-- Modal Header --}}
+                            <div class="bg-gradient-to-r from-yellow-500 to-orange-600 px-6 py-5">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                                            <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                                                     d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                                             </svg>
-                                            Nonaktifkan
-                                        </span>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-lg font-bold text-white">Nonaktifkan Komponen</h3>
+                                            <p class="text-sm text-yellow-100">{{ $empComponent->component->name }}</p>
+                                        </div>
+                                    </div>
+                                    <button @click="closeDeactivateModal()" type="button"
+                                        class="text-white/80 hover:text-white transition-colors">
+                                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
                                     </button>
                                 </div>
-                            </form>
-                        @endforeach
-                    </template>
+                            </div>
+
+                            {{-- Modal Body --}}
+                            <div class="px-6 py-6 space-y-6">
+                                <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                                    <div class="flex gap-3">
+                                        <svg class="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                        <div class="flex-1">
+                                            <h4 class="text-sm font-semibold text-yellow-900 mb-1">Perhatian</h4>
+                                            <p class="text-sm text-yellow-700">
+                                                Komponen ini akan dinonaktifkan dan tidak akan digunakan dalam perhitungan payroll setelah tanggal yang ditentukan.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- Effective To --}}
+                                <div>
+                                    <label for="deactivate_effective_to_{{ $empComponent->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                        Tanggal Berakhir <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="date" name="effective_to" id="deactivate_effective_to_{{ $empComponent->id }}" 
+                                        required min="{{ $empComponent->effective_from->format('Y-m-d') }}"
+                                        value="{{ now()->format('Y-m-d') }}"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-transparent">
+                                    <p class="mt-1 text-xs text-gray-500">
+                                        Minimal: {{ $empComponent->effective_from->format('d M Y') }}
+                                    </p>
+                                </div>
+
+                                {{-- Notes --}}
+                                <div>
+                                    <label for="deactivate_notes_{{ $empComponent->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                        Alasan Penonaktifan
+                                    </label>
+                                    <textarea name="notes" id="deactivate_notes_{{ $empComponent->id }}" rows="3"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                                        placeholder="Jelaskan alasan penonaktifan komponen ini..."></textarea>
+                                </div>
+                            </div>
+
+                            {{-- Modal Footer --}}
+                            <div class="bg-gray-50 px-6 py-4 flex items-center justify-end gap-3 border-t border-gray-200">
+                                <button @click="closeDeactivateModal()" type="button"
+                                    class="px-5 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-xl transition-colors">
+                                    Batal
+                                </button>
+                                <button type="submit"
+                                    class="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm">
+                                    <span class="flex items-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                        </svg>
+                                        Nonaktifkan
+                                    </span>
+                                </button>
+                            </div>
+                        </form>
+                    @endforeach
                 </div>
             </div>
         </div>

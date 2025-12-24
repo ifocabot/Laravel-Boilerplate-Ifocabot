@@ -83,11 +83,18 @@ class ShiftController extends Controller
                 'work_hours_required' => 'required|integer|min:0|max:1440',
                 'late_tolerance_minutes' => 'required|integer|min:0|max:120',
                 'is_overnight' => 'nullable|boolean',
+                'working_days' => 'nullable|array',
+                'working_days.*' => 'integer|min:0|max:6',
                 'description' => 'nullable|string',
             ]);
 
             $validated['is_overnight'] = $request->has('is_overnight');
             $validated['is_active'] = true;
+
+            // Set default working days if not provided
+            if (!isset($validated['working_days']) || empty($validated['working_days'])) {
+                $validated['working_days'] = Shift::getDefaultWorkingDays();
+            }
 
             $shift = Shift::create($validated);
 
@@ -148,11 +155,18 @@ class ShiftController extends Controller
                 'late_tolerance_minutes' => 'required|integer|min:0|max:120',
                 'is_overnight' => 'nullable|boolean',
                 'is_active' => 'nullable|boolean',
+                'working_days' => 'nullable|array',
+                'working_days.*' => 'integer|min:0|max:6',
                 'description' => 'nullable|string',
             ]);
 
             $validated['is_overnight'] = $request->has('is_overnight');
             $validated['is_active'] = $request->has('is_active');
+
+            // Set default working days if not provided
+            if (!isset($validated['working_days']) || empty($validated['working_days'])) {
+                $validated['working_days'] = Shift::getDefaultWorkingDays();
+            }
 
             $shift->update($validated);
 

@@ -15,6 +15,8 @@ class EmployeeSchedule extends Model
         'date',
         'is_day_off',
         'is_holiday',
+        'is_leave',
+        'leave_request_id',
         'notes',
     ];
 
@@ -22,6 +24,7 @@ class EmployeeSchedule extends Model
         'date' => 'date',
         'is_day_off' => 'boolean',
         'is_holiday' => 'boolean',
+        'is_leave' => 'boolean',
     ];
 
     /**
@@ -38,6 +41,11 @@ class EmployeeSchedule extends Model
     public function shift(): BelongsTo
     {
         return $this->belongsTo(Shift::class);
+    }
+
+    public function leaveRequest(): BelongsTo
+    {
+        return $this->belongsTo(LeaveRequest::class);
     }
 
     /**
@@ -73,6 +81,11 @@ class EmployeeSchedule extends Model
     {
         return Attribute::make(
             get: function () {
+                // Check for approved leave first
+                if ($this->is_leave) {
+                    $leaveRequest = $this->getApprovedLeaveRequest();
+                    return 'Cuti' . ($leaveRequest && $leaveRequest->leaveType ? ' - ' . $leaveRequest->leaveType->name : '');
+                }
                 if ($this->is_holiday) {
                     return 'Libur Nasional';
                 }
@@ -91,6 +104,10 @@ class EmployeeSchedule extends Model
     {
         return Attribute::make(
             get: function () {
+                // Check for approved leave first
+                if ($this->is_leave) {
+                    return 'bg-yellow-100 text-yellow-700';
+                }
                 if ($this->is_holiday) {
                     return 'bg-red-100 text-red-700';
                 }
@@ -100,6 +117,32 @@ class EmployeeSchedule extends Model
                 return 'bg-indigo-100 text-indigo-700';
             }
         );
+    }
+
+    /**
+     * Check if employee has approved leave on this date
+     */
+    protected function isLeave(): Attribute
+    {
+        return Attribute::make(
+            get: fn() => $this->getApprovedLeaveRequest() !== null
+        );
+    }
+
+    /**
+     * Get approved leave request for this employee on this date
+     */
+    public function getApprovedLeaveRequest()
+    {
+        if (!class_exists(LeaveRequest::class)) {
+            return null;
+        }
+
+        return LeaveRequest::where('employee_id', $this->employee_id)
+            ->where('status', 'approved')
+            ->where('start_date', '<=', $this->date)
+            ->where('end_date', '>=', $this->date)
+            ->first();
     }
 
     /**
@@ -200,6 +243,13 @@ class EmployeeSchedule extends Model
      */
     public static function generateMonthSchedules($employeeId, $year, $month, $shiftId, $options = [])
     {
+        // Load shift to get working days pattern
+        $shift = \App\Models\Shift::find($shiftId);
+
+        if (!$shift) {
+            throw new \Exception("Shift not found");
+        }
+
         $startDate = Carbon::create($year, $month, 1);
         $endDate = $startDate->copy()->endOfMonth();
 
@@ -213,14 +263,23 @@ class EmployeeSchedule extends Model
                 ->exists();
 
             if (!$exists) {
-                $isWeekend = in_array($currentDate->dayOfWeek, [Carbon::SATURDAY, Carbon::SUNDAY]);
+                // Check if this date is a working day for this shift
+                $isWorkingDay = $shift->isWorkingDay($currentDate);
+
+                // Check if this date is a national holiday (overrides working day)
+                $isNationalHoliday = \App\Models\NationalHoliday::isHoliday($currentDate);
+
+                if ($isNationalHoliday) {
+                    // National holiday overrides working day
+                    $isWorkingDay = false;
+                }
 
                 $schedules[] = [
                     'employee_id' => $employeeId,
-                    'shift_id' => $isWeekend && !($options['include_weekend'] ?? false) ? null : $shiftId,
+                    'shift_id' => $isWorkingDay ? $shiftId : null,
                     'date' => $currentDate->format('Y-m-d'),
-                    'is_day_off' => $isWeekend && !($options['include_weekend'] ?? false),
-                    'is_holiday' => false,
+                    'is_day_off' => !$isWorkingDay && !$isNationalHoliday,
+                    'is_holiday' => $isNationalHoliday,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];

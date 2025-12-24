@@ -221,12 +221,7 @@ class EmployeeScheduleController extends Controller
                 'year' => 'required|integer|min:2020|max:2100',
                 'month' => 'required|integer|min:1|max:12',
                 'shift_id' => 'required|exists:shifts,id',
-                'include_weekend' => 'nullable|boolean',
             ]);
-
-            $options = [
-                'include_weekend' => $request->has('include_weekend'),
-            ];
 
             $totalGenerated = 0;
             foreach ($validated['employee_ids'] as $employeeId) {
@@ -235,7 +230,7 @@ class EmployeeScheduleController extends Controller
                     $validated['year'],
                     $validated['month'],
                     $validated['shift_id'],
-                    $options
+                    [] // Options no longer needed, working days determined by shift
                 );
                 $totalGenerated += $generated;
             }

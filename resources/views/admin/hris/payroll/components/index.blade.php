@@ -143,6 +143,22 @@
                                         <span class="text-blue-600">• BPJS Base</span>
                                     @endif
                                 </div>
+                                {{-- Rate Info --}}
+                                @if($component->rate_per_day || $component->rate_per_hour || $component->percentage_value)
+                                    <div class="flex items-center gap-4 mt-1 text-xs text-gray-500">
+                                        @if($component->rate_per_day)
+                                            <span class="text-green-600">📅
+                                                Rp{{ number_format($component->rate_per_day, 0, ',', '.') }}/hari</span>
+                                        @endif
+                                        @if($component->rate_per_hour)
+                                            <span class="text-purple-600">⏱️
+                                                Rp{{ number_format($component->rate_per_hour, 0, ',', '.') }}/jam</span>
+                                        @endif
+                                        @if($component->percentage_value)
+                                            <span class="text-indigo-600">📊 {{ $component->percentage_value }}%</span>
+                                        @endif
+                                    </div>
+                                @endif
                             </div>
                             <div class="flex items-center gap-2">
                                 <button @click="openEditModal({{ $component->id }})" type="button"
@@ -210,6 +226,20 @@
                                         <span class="text-blue-600">• Formula: {{ $component->calculation_formula }}</span>
                                     @endif
                                 </div>
+                                {{-- Rate Info --}}
+                                @if($component->rate_per_day || $component->rate_per_hour || $component->percentage_value)
+                                    <div class="flex items-center gap-4 mt-1 text-xs text-gray-500">
+                                        @if($component->rate_per_day)
+                                            <span class="text-green-600">📅 Rp{{ number_format($component->rate_per_day, 0, ',', '.') }}/hari</span>
+                                        @endif
+                                        @if($component->rate_per_hour)
+                                            <span class="text-purple-600">⏱️ Rp{{ number_format($component->rate_per_hour, 0, ',', '.') }}/jam</span>
+                                        @endif
+                                        @if($component->percentage_value)
+                                            <span class="text-indigo-600">📊 {{ $component->percentage_value }}%</span>
+                                        @endif
+                                    </div>
+                                @endif
                             </div>
                             <div class="flex items-center gap-2">
                                 <button @click="openEditModal({{ $component->id }})" type="button"
@@ -381,6 +411,52 @@
                                         class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                                         placeholder="e.g., basic_salary * 0.05">
                                 </div>
+                            </div>
+
+                            {{-- Rate Fields --}}
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div>
+                                    <label for="create_rate_per_day" class="block text-sm font-semibold text-gray-700 mb-2">
+                                        Rate per Hari (Rp)
+                                    </label>
+                                    <input type="number" name="rate_per_day" id="create_rate_per_day" min="0" step="1000"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        placeholder="0">
+                                    <p class="text-xs text-gray-500 mt-1">Untuk perhitungan per hari kerja</p>
+                                </div>
+
+                                <div>
+                                    <label for="create_rate_per_hour"
+                                        class="block text-sm font-semibold text-gray-700 mb-2">
+                                        Rate per Jam (Rp)
+                                    </label>
+                                    <input type="number" name="rate_per_hour" id="create_rate_per_hour" min="0" step="100"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        placeholder="0">
+                                    <p class="text-xs text-gray-500 mt-1">Untuk perhitungan lembur/jam</p>
+                                </div>
+
+                                <div>
+                                    <label for="create_percentage_value"
+                                        class="block text-sm font-semibold text-gray-700 mb-2">
+                                        Persentase (%)
+                                    </label>
+                                    <input type="number" name="percentage_value" id="create_percentage_value" min="0"
+                                        max="100" step="0.01"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        placeholder="0">
+                                    <p class="text-xs text-gray-500 mt-1">Untuk perhitungan persentase</p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label for="create_calculation_notes"
+                                    class="block text-sm font-semibold text-gray-700 mb-2">
+                                    Catatan Perhitungan
+                                </label>
+                                <textarea name="calculation_notes" id="create_calculation_notes" rows="2"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                    placeholder="Catatan atau keterangan cara perhitungan komponen ini"></textarea>
                             </div>
 
                             <div>
@@ -577,6 +653,52 @@
                                             value="{{ $component->calculation_formula }}"
                                             class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
                                     </div>
+                                </div>
+
+                                {{-- Rate Fields --}}
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div>
+                                        <label for="edit_rate_per_day_{{ $component->id }}"
+                                            class="block text-sm font-semibold text-gray-700 mb-2">
+                                            Rate per Hari (Rp)
+                                        </label>
+                                        <input type="number" name="rate_per_day" id="edit_rate_per_day_{{ $component->id }}"
+                                            min="0" step="1000" value="{{ $component->rate_per_day }}"
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                                        <p class="text-xs text-gray-500 mt-1">Untuk perhitungan per hari kerja</p>
+                                    </div>
+
+                                    <div>
+                                        <label for="edit_rate_per_hour_{{ $component->id }}"
+                                            class="block text-sm font-semibold text-gray-700 mb-2">
+                                            Rate per Jam (Rp)
+                                        </label>
+                                        <input type="number" name="rate_per_hour" id="edit_rate_per_hour_{{ $component->id }}"
+                                            min="0" step="100" value="{{ $component->rate_per_hour }}"
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                                        <p class="text-xs text-gray-500 mt-1">Untuk perhitungan lembur/jam</p>
+                                    </div>
+
+                                    <div>
+                                        <label for="edit_percentage_value_{{ $component->id }}"
+                                            class="block text-sm font-semibold text-gray-700 mb-2">
+                                            Persentase (%)
+                                        </label>
+                                        <input type="number" name="percentage_value"
+                                            id="edit_percentage_value_{{ $component->id }}" min="0" max="100" step="0.01"
+                                            value="{{ $component->percentage_value }}"
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                                        <p class="text-xs text-gray-500 mt-1">Untuk perhitungan persentase</p>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label for="edit_calculation_notes_{{ $component->id }}"
+                                        class="block text-sm font-semibold text-gray-700 mb-2">
+                                        Catatan Perhitungan
+                                    </label>
+                                    <textarea name="calculation_notes" id="edit_calculation_notes_{{ $component->id }}" rows="2"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">{{ $component->calculation_notes }}</textarea>
                                 </div>
 
                                 <div>

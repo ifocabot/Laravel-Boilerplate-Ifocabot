@@ -24,18 +24,48 @@ class EmployeeController extends Controller
     /**
      * Display a listing of employees
      */
-    public function index()
+    public function index(Request $request)
     {
-        $employees = Employee::with([
-            'careers' => function ($query) {
-                $query->where('is_active', true)->with(['department', 'position', 'level', 'branch']);
-            },
+        // Build query with eager loading
+        $query = Employee::with([
+            'current_career.department',
+            'current_career.position',
+            'current_career.level',
+            'current_career.branch',
             'contracts' => function ($query) {
                 $query->where('is_active', true);
             }
-        ])
-            ->orderBy('full_name')
-            ->paginate(20);
+        ]);
+
+        // ⭐ Apply status filter from query params
+        if ($request->filled('status')) {
+            $status = $request->input('status');
+            if ($status === 'resigned') {
+                // Include both resigned and terminated
+                $query->whereIn('status', ['resigned', 'terminated']);
+            } else {
+                $query->where('status', $status);
+            }
+        }
+
+        // Apply search filter
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('full_name', 'like', "%{$search}%")
+                    ->orWhere('nik', 'like', "%{$search}%")
+                    ->orWhere('email_corporate', 'like', "%{$search}%");
+            });
+        }
+
+        // Apply department filter
+        if ($request->filled('department_id')) {
+            $query->whereHas('current_career', function ($q) use ($request) {
+                $q->where('department_id', $request->input('department_id'));
+            });
+        }
+
+        $employees = $query->orderBy('full_name')->paginate(20)->withQueryString();
 
         // Stats
         $totalEmployees = Employee::count();
@@ -51,6 +81,11 @@ class EmployeeController extends Controller
         $levels = Level::orderBy('name')->get();
         $locations = Location::where('is_active', true)->orderBy('name')->get();
 
+        // ⭐ Pass current filters to view
+        $currentStatus = $request->input('status', '');
+        $currentSearch = $request->input('search', '');
+        $currentDepartment = $request->input('department_id', '');
+
         return view('admin.hris.employees.index', compact(
             'employees',
             'totalEmployees',
@@ -60,7 +95,10 @@ class EmployeeController extends Controller
             'departments',
             'positions',
             'levels',
-            'locations'
+            'locations',
+            'currentStatus',
+            'currentSearch',
+            'currentDepartment'
         ));
     }
 
@@ -71,9 +109,28 @@ class EmployeeController extends Controller
     {
         $departments = Department::orderBy('name')->get();
         $positions = Position::orderBy('name')->get();
-        $levels = Level::orderBy('name')->get();
+
+        // ⭐ Sort levels by approval_order for proper hierarchy display
+        $levels = Level::orderBy('approval_order', 'asc')->get();
+
         $locations = Location::where('is_active', true)->orderBy('name')->get();
-        $employees = Employee::where('status', 'active')->orderBy('full_name')->get();
+
+        // ⭐ Get employees with their level data for smart manager filtering
+        $employees = Employee::where('status', 'active')
+            ->with(['current_career.level'])
+            ->orderBy('full_name')
+            ->get()
+            ->map(function ($emp) {
+                return [
+                    'id' => $emp->id,
+                    'full_name' => $emp->full_name,
+                    'nik' => $emp->nik,
+                    'level_id' => $emp->current_career->level_id ?? null,
+                    'level_name' => $emp->current_career->level->name ?? null,
+                    'approval_order' => $emp->current_career->level->approval_order ?? 0,
+                ];
+            });
+
         $autoNik = Employee::generateNik();
 
         return view('admin.hris.employees.create', compact(
@@ -158,6 +215,15 @@ class EmployeeController extends Controller
                     'password' => Hash::make($validated['user_password']),
                 ]);
                 $userId = $user->id;
+
+                // Assign default role if available
+                if (method_exists($user, 'assignRole')) {
+                    try {
+                        $user->assignRole('employee');
+                    } catch (\Exception $e) {
+                        // Role might not exist, skip
+                    }
+                }
             }
 
             if (empty($validated['nik'])) {

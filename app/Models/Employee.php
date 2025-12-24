@@ -98,13 +98,21 @@ class Employee extends Model
     }
 
     /**
-     * Current/latest active career (using is_current flag if exists, or latest if not)
+     * Current/latest active career (using is_current flag)
+     * Note: Uses snake_case name for direct Blade compatibility
+     */
+    public function current_career(): HasOne
+    {
+        return $this->hasOne(EmployeeCareer::class)
+            ->where('is_current', true);
+    }
+
+    /**
+     * Alias for current_career() - for backward compatibility with camelCase usage
      */
     public function currentCareer(): HasOne
     {
-        return $this->hasOne(EmployeeCareer::class)
-            ->where('is_current', true)
-            ->latest('start_date');
+        return $this->current_career();
     }
 
     /**
@@ -533,5 +541,84 @@ class Employee extends Model
     public function getTodayShiftAttribute()
     {
         return $this->today_schedule?->shift;
+    }
+
+
+    public function attendanceLogs(): HasMany
+    {
+        return $this->hasMany(AttendanceLog::class);
+    }
+
+    /**
+     * Today's attendance log
+     */
+    public function getTodayAttendanceAttribute()
+    {
+        return $this->attendanceLogs()
+            ->where('date', today())
+            ->first();
+    }
+
+    /**
+     * Check if has clocked in today
+     */
+    public function getHasClockedInTodayAttribute(): bool
+    {
+        return $this->today_attendance?->has_clocked_in ?? false;
+    }
+
+    /**
+     * Check if has clocked out today
+     */
+    public function getHasClockedOutTodayAttribute(): bool
+    {
+        return $this->today_attendance?->has_clocked_out ?? false;
+    }
+
+    /**
+     * Get current work status
+     */
+    public function getCurrentWorkStatusAttribute(): string
+    {
+        return $this->today_attendance?->status_label ?? 'Belum Clock In';
+    }
+
+    public function attendanceSummaries(): HasMany
+    {
+        return $this->hasMany(AttendanceSummary::class);
+    }
+
+    /**
+     * Today's attendance summary
+     */
+    public function getTodaySummaryAttribute()
+    {
+        return $this->attendanceSummaries()
+            ->where('date', today())
+            ->first();
+    }
+
+    /**
+     * Get current month summaries
+     */
+    public function getCurrentMonthSummariesAttribute()
+    {
+        return $this->attendanceSummaries()
+            ->whereYear('date', now()->year)
+            ->whereMonth('date', now()->month)
+            ->get();
+    }
+
+    public function overtimeRequests(): HasMany
+    {
+        return $this->hasMany(OvertimeRequest::class);
+    }
+
+    /**
+     * Get pending overtime requests
+     */
+    public function getPendingOvertimeRequestsAttribute()
+    {
+        return $this->overtimeRequests()->pending()->get();
     }
 }

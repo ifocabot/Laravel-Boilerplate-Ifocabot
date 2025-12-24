@@ -1,0 +1,236 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\ApprovalWorkflow;
+use App\Models\ApprovalWorkflowStep;
+use App\Models\Level;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+class ApprovalWorkflowController extends Controller
+{
+    /**
+     * Display a listing of workflows
+     */
+    public function index(Request $request)
+    {
+        $query = ApprovalWorkflow::withCount('steps');
+
+        if ($request->filled('type')) {
+            $query->forType($request->type);
+        }
+
+        if ($request->filled('status')) {
+            $isActive = $request->status === 'active';
+            $query->where('is_active', $isActive);
+        }
+
+        $workflows = $query->orderBy('name')->paginate(20);
+
+        // Stats
+        $totalWorkflows = ApprovalWorkflow::count();
+        $activeWorkflows = ApprovalWorkflow::active()->count();
+        $workflowTypes = ApprovalWorkflow::distinct()->pluck('type');
+
+        return view('admin.approval-workflows.index', compact(
+            'workflows',
+            'totalWorkflows',
+            'activeWorkflows',
+            'workflowTypes'
+        ));
+    }
+
+    /**
+     * Show the form for creating a new workflow
+     */
+    public function create()
+    {
+        $levels = Level::orderBy('name')->get();
+        $users = User::orderBy('name')->get();
+
+        return view('admin.approval-workflows.create', compact('levels', 'users'));
+    }
+
+    /**
+     * Store a newly created workflow
+     */
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:100',
+            'type' => 'required|string|max:50',
+            'description' => 'nullable|string|max:500',
+            'steps' => 'required|array|min:1',
+            'steps.*.approver_type' => 'required|in:direct_supervisor,position_level,specific_user,next_level_up,second_level_up',
+            'steps.*.approver_value' => 'nullable|string|max:100',
+            'steps.*.is_required' => 'nullable|boolean',
+            'steps.*.can_skip_if_same' => 'nullable|boolean',
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+            $workflow = ApprovalWorkflow::create([
+                'name' => $validated['name'],
+                'type' => $validated['type'],
+                'description' => $validated['description'] ?? null,
+                'is_active' => true,
+            ]);
+
+            // Create steps
+            foreach ($validated['steps'] as $index => $stepData) {
+                ApprovalWorkflowStep::create([
+                    'workflow_id' => $workflow->id,
+                    'step_order' => $index + 1,
+                    'approver_type' => $stepData['approver_type'],
+                    'approver_value' => $stepData['approver_value'] ?? null,
+                    'is_required' => $stepData['is_required'] ?? true,
+                    'can_skip_if_same' => $stepData['can_skip_if_same'] ?? true,
+                ]);
+            }
+
+            DB::commit();
+
+            Log::info('Workflow created', ['workflow_id' => $workflow->id]);
+
+            return redirect()
+                ->route('admin.approval-workflows.index')
+                ->with('success', 'Workflow berhasil dibuat.');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Workflow creation error', ['error' => $e->getMessage()]);
+
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Display the specified workflow
+     */
+    public function show(string $id)
+    {
+        $workflow = ApprovalWorkflow::with('steps')->findOrFail($id);
+
+        return view('admin.approval-workflows.show', compact('workflow'));
+    }
+
+    /**
+     * Show the form for editing the workflow
+     */
+    public function edit(string $id)
+    {
+        $workflow = ApprovalWorkflow::with('steps')->findOrFail($id);
+        $levels = Level::orderBy('name')->get();
+        $users = User::orderBy('name')->get();
+
+        return view('admin.approval-workflows.edit', compact('workflow', 'levels', 'users'));
+    }
+
+    /**
+     * Update the specified workflow
+     */
+    public function update(Request $request, string $id)
+    {
+        $workflow = ApprovalWorkflow::findOrFail($id);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:100',
+            'type' => 'required|string|max:50',
+            'description' => 'nullable|string|max:500',
+            'is_active' => 'nullable|boolean',
+            'steps' => 'required|array|min:1',
+            'steps.*.approver_type' => 'required|in:direct_supervisor,position_level,specific_user',
+            'steps.*.approver_value' => 'nullable|string|max:100',
+            'steps.*.is_required' => 'nullable|boolean',
+            'steps.*.can_skip_if_same' => 'nullable|boolean',
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+            $workflow->update([
+                'name' => $validated['name'],
+                'type' => $validated['type'],
+                'description' => $validated['description'] ?? null,
+                'is_active' => $request->has('is_active'),
+            ]);
+
+            // Delete existing steps and recreate
+            $workflow->steps()->delete();
+
+            foreach ($validated['steps'] as $index => $stepData) {
+                ApprovalWorkflowStep::create([
+                    'workflow_id' => $workflow->id,
+                    'step_order' => $index + 1,
+                    'approver_type' => $stepData['approver_type'],
+                    'approver_value' => $stepData['approver_value'] ?? null,
+                    'is_required' => $stepData['is_required'] ?? true,
+                    'can_skip_if_same' => $stepData['can_skip_if_same'] ?? true,
+                ]);
+            }
+
+            DB::commit();
+
+            Log::info('Workflow updated', ['workflow_id' => $workflow->id]);
+
+            return redirect()
+                ->route('admin.approval-workflows.index')
+                ->with('success', 'Workflow berhasil diperbarui.');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Workflow update error', ['error' => $e->getMessage()]);
+
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Remove the specified workflow
+     */
+    public function destroy(string $id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $workflow = ApprovalWorkflow::findOrFail($id);
+            $workflowName = $workflow->name;
+
+            // Check if workflow has active requests
+            if ($workflow->approvalRequests()->pending()->exists()) {
+                return redirect()
+                    ->back()
+                    ->with('error', 'Tidak dapat menghapus workflow yang memiliki request aktif.');
+            }
+
+            $workflow->delete();
+
+            DB::commit();
+
+            Log::info('Workflow deleted', ['workflow_id' => $id, 'name' => $workflowName]);
+
+            return redirect()
+                ->route('admin.approval-workflows.index')
+                ->with('success', "Workflow \"{$workflowName}\" berhasil dihapus.");
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Workflow deletion error', ['error' => $e->getMessage()]);
+
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+        }
+    }
+}

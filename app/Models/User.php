@@ -61,4 +61,9 @@ class User extends Authenticatable implements Auditable
     {
         return $this->hasMany(Department::class, 'manager_id');
     }
+
+    public function employee()
+    {
+        return $this->hasOne(Employee::class, 'user_id', 'id');
+    }
 }

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php artisan make:migration:*)",
+      "Read(//s/project-2025/erp/**)",
+      "Bash(php artisan make:model:*)",
+      "Bash(php artisan make:controller:*)",
+      "Bash(php artisan make:seeder:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

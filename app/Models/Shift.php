@@ -20,6 +20,7 @@ class Shift extends Model
         'late_tolerance_minutes',
         'is_overnight',
         'is_active',
+        'working_days',
         'description',
     ];
 
@@ -28,6 +29,7 @@ class Shift extends Model
         'is_active' => 'boolean',
         'work_hours_required' => 'integer',
         'late_tolerance_minutes' => 'integer',
+        'working_days' => 'array',
     ];
 
     /**
@@ -145,6 +147,43 @@ class Shift extends Model
             get: fn() => $this->is_active
             ? 'bg-green-100 text-green-700'
             : 'bg-gray-100 text-gray-700'
+        );
+    }
+
+    /**
+     * Get working days label (e.g., "Sen - Jum", "Sel - Sab")
+     */
+    protected function workingDaysLabel(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                if (!$this->working_days || empty($this->working_days)) {
+                    return 'Tidak ada';
+                }
+
+                $dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+                $workingDays = $this->working_days;
+                sort($workingDays);
+
+                // Check if consecutive days
+                $isConsecutive = true;
+                for ($i = 1; $i < count($workingDays); $i++) {
+                    if ($workingDays[$i] !== $workingDays[$i - 1] + 1) {
+                        // Check for wrap-around (Sat-Sun-Mon pattern)
+                        if (!($workingDays[$i - 1] === 6 && $workingDays[$i] === 0)) {
+                            $isConsecutive = false;
+                            break;
+                        }
+                    }
+                }
+
+                if ($isConsecutive && count($workingDays) > 1) {
+                    return $dayNames[$workingDays[0]] . ' - ' . $dayNames[$workingDays[count($workingDays) - 1]];
+                }
+
+                // Not consecutive, list all days
+                return implode(', ', array_map(fn($day) => $dayNames[$day], $workingDays));
+            }
         );
     }
 
@@ -294,5 +333,46 @@ class Shift extends Model
     {
         return self::where('code', 'SH001')->first()
             ?? self::active()->first();
+    }
+
+    /**
+     * Check if a given date is a working day for this shift
+     */
+    public function isWorkingDay(Carbon $date): bool
+    {
+        if (!$this->working_days || empty($this->working_days)) {
+            // Default to Mon-Fri if not set
+            return in_array($date->dayOfWeek, [1, 2, 3, 4, 5]);
+        }
+
+        return in_array($date->dayOfWeek, $this->working_days);
+    }
+
+    /**
+     * Get all working days in a given month
+     */
+    public function getWorkingDaysInMonth(int $year, int $month): \Illuminate\Support\Collection
+    {
+        $startDate = Carbon::create($year, $month, 1);
+        $endDate = $startDate->copy()->endOfMonth();
+        $workingDates = collect();
+        $currentDate = $startDate->copy();
+
+        while ($currentDate <= $endDate) {
+            if ($this->isWorkingDay($currentDate)) {
+                $workingDates->push($currentDate->copy());
+            }
+            $currentDate->addDay();
+        }
+
+        return $workingDates;
+    }
+
+    /**
+     * Get default working days (Mon-Fri)
+     */
+    public static function getDefaultWorkingDays(): array
+    {
+        return [1, 2, 3, 4, 5]; // Monday to Friday
     }
 }

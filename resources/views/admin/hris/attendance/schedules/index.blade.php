@@ -190,9 +190,10 @@
                                 Karyawan
                             </th>
                             @foreach($dates as $date)
-                                <th class="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-100 min-w-[90px]
-                                                                        {{ $date->isWeekend() ? 'bg-red-50' : '' }}
-                                                                        {{ $date->isToday() ? 'bg-indigo-50' : '' }}">
+                                <th
+                                    class="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-100 min-w-[90px]
+                                                                                                {{ $date->isWeekend() ? 'bg-red-50' : '' }}
+                                                                                                {{ $date->isToday() ? 'bg-indigo-50' : '' }}">
                                     <div>{{ $date->format('d') }}</div>
                                     <div class="text-[10px] font-normal text-gray-500 mt-0.5">
                                         {{ $date->translatedFormat('D') }}
@@ -223,17 +224,33 @@
                                     @endphp
                                     <td
                                         class="px-1 py-1 text-center border-r border-gray-100 group
-                                                                                                        {{ $date->isWeekend() ? 'bg-red-50' : '' }} 
-                                                                                                        {{ $date->isToday() ? 'ring-2 ring-indigo-500 ring-inset' : '' }}">
+                                                                                                                                            {{ $date->isWeekend() ? 'bg-red-50' : '' }} 
+                                                                                                                                            {{ $date->isToday() ? 'ring-2 ring-indigo-500 ring-inset' : '' }}">
                                         <button
                                             @click="openScheduleModal({{ $employee->id }}, '{{ $employee->full_name }}', '{{ $date->format('Y-m-d') }}', {{ $schedule ? $schedule->id : 'null' }})"
                                             type="button"
                                             class="w-full h-full min-h-[75px] p-1.5 rounded-lg transition-all
-                                                                                                                {{ $schedule ? 'hover:bg-gray-100 hover:shadow-sm' : 'hover:bg-indigo-50 hover:border hover:border-indigo-300' }}">
+                                                                                                                                                    {{ $schedule ? 'hover:bg-gray-100 hover:shadow-sm' : 'hover:bg-indigo-50 hover:border hover:border-indigo-300' }}">
                                             @if($schedule)
                                                 {{-- HAS SCHEDULE --}}
                                                 <div class="space-y-1">
-                                                    @if($schedule->is_holiday)
+                                                    @if($schedule->is_leave)
+                                                        {{-- APPROVED LEAVE --}}
+                                                        <div
+                                                            class="text-[10px] font-bold text-yellow-700 bg-yellow-100 rounded-md px-2 py-1.5 border border-yellow-300">
+                                                            <div class="flex items-center justify-center gap-1">
+                                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                                </svg>
+                                                                <span>CUTI</span>
+                                                            </div>
+                                                            @php $leaveReq = $schedule->getApprovedLeaveRequest(); @endphp
+                                                            @if($leaveReq && $leaveReq->leaveType)
+                                                                <div class="text-[8px] mt-0.5 text-yellow-600">{{ $leaveReq->leaveType->name }}</div>
+                                                            @endif
+                                                        </div>
+                                                    @elseif($schedule->is_holiday)
                                                         <div
                                                             class="text-[10px] font-bold text-red-700 bg-red-100 rounded-md px-2 py-1.5 border border-red-200">
                                                             <div class="flex items-center justify-center gap-1">
@@ -565,15 +582,6 @@
                                 </select>
                             </div>
 
-                            {{-- Include Weekend --}}
-                            <div>
-                                <label class="flex items-center gap-3 cursor-pointer">
-                                    <input type="checkbox" x-model="bulkForm.include_weekend"
-                                        class="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                    <span class="text-sm font-medium text-gray-700">Termasuk weekend (Sabtu & Minggu)</span>
-                                </label>
-                            </div>
-
                             {{-- Info --}}
                             <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
                                 <div class="flex items-start gap-3">
@@ -585,9 +593,9 @@
                                     <div class="flex-1">
                                         <p class="text-sm font-medium text-blue-900 mb-1">Informasi</p>
                                         <ul class="text-xs text-blue-700 space-y-1">
-                                            <li>• Jadwal akan dibuat untuk seluruh hari dalam bulan yang dipilih</li>
+                                            <li>• Jadwal akan dibuat sesuai pola hari kerja shift yang dipilih</li>
                                             <li>• Jadwal yang sudah ada tidak akan ditimpa</li>
-                                            <li>• Jika tidak include weekend, Sabtu & Minggu akan otomatis Off</li>
+                                            <li>• Hari di luar pola kerja shift akan otomatis ditandai OFF</li>
                                         </ul>
                                     </div>
                                 </div>
@@ -752,8 +760,7 @@
                         employee_ids: [],
                         year: {{ $year }},
                         month: {{ $month }},
-                        shift_id: '',
-                        include_weekend: false
+                        shift_id: ''
                     },
                     holidayForm: {
                         date: '{{ $dates->first()->format('Y-m-d') }}',

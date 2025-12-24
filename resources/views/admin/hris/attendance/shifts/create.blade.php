@@ -217,6 +217,96 @@
                         </div>
                     </div>
 
+                    {{-- Working Days --}}
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-900 mb-4">Hari Kerja</h3>
+                        <div class="space-y-4">
+                            <p class="text-sm text-gray-600">Pilih hari-hari kerja untuk shift ini:</p>
+                            
+                            {{-- Preset Buttons --}}
+                            <div class="flex flex-wrap gap-2 mb-4">
+                                <button type="button" @click="setWorkingDays([1,2,3,4,5])"
+                                    class="px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors">
+                                    Sen - Jum
+                                </button>
+                                <button type="button" @click="setWorkingDays([2,3,4,5,6])"
+                                    class="px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">
+                                    Sel - Sab
+                                </button>
+                                <button type="button" @click="setWorkingDays([0,1,2,3,4,5,6])"
+                                    class="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
+                                    Semua Hari
+                                </button>
+                                <button type="button" @click="setWorkingDays([])"
+                                    class="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
+                                    Reset
+                                </button>
+                            </div>
+
+                            {{-- Day Checkboxes --}}
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                    <input type="checkbox" name="working_days[]" value="0" 
+                                        x-model="workingDays"
+                                        {{ in_array(0, old('working_days', [])) ? 'checked' : '' }}
+                                        class="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    <span class="text-sm font-medium text-gray-700">Minggu</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                    <input type="checkbox" name="working_days[]" value="1" 
+                                        x-model="workingDays"
+                                        {{ in_array(1, old('working_days', [1,2,3,4,5])) ? 'checked' : '' }}
+                                        class="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    <span class="text-sm font-medium text-gray-700">Senin</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                    <input type="checkbox" name="working_days[]" value="2" 
+                                        x-model="workingDays"
+                                        {{ in_array(2, old('working_days', [1,2,3,4,5])) ? 'checked' : '' }}
+                                        class="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    <span class="text-sm font-medium text-gray-700">Selasa</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                    <input type="checkbox" name="working_days[]" value="3" 
+                                        x-model="workingDays"
+                                        {{ in_array(3, old('working_days', [1,2,3,4,5])) ? 'checked' : '' }}
+                                        class="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    <span class="text-sm font-medium text-gray-700">Rabu</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                    <input type="checkbox" name="working_days[]" value="4" 
+                                        x-model="workingDays"
+                                        {{ in_array(4, old('working_days', [1,2,3,4,5])) ? 'checked' : '' }}
+                                        class="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    <span class="text-sm font-medium text-gray-700">Kamis</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                    <input type="checkbox" name="working_days[]" value="5" 
+                                        x-model="workingDays"
+                                        {{ in_array(5, old('working_days', [1,2,3,4,5])) ? 'checked' : '' }}
+                                        class="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    <span class="text-sm font-medium text-gray-700">Jumat</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                    <input type="checkbox" name="working_days[]" value="6" 
+                                        x-model="workingDays"
+                                        {{ in_array(6, old('working_days', [])) ? 'checked' : '' }}
+                                        class="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    <span class="text-sm font-medium text-gray-700">Sabtu</span>
+                                </label>
+                            </div>
+
+                            <p class="text-xs text-gray-500 mt-2">
+                                <span x-show="workingDays.length > 0">
+                                    <span x-text="workingDays.length"></span> hari dipilih
+                                </span>
+                                <span x-show="workingDays.length === 0" class="text-amber-600">
+                                    ⚠️ Tidak ada hari kerja dipilih - akan menggunakan default (Sen-Jum)
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+
                     {{-- Description --}}
                     <div>
                         <label for="description" class="block text-sm font-semibold text-gray-700 mb-2">
@@ -276,6 +366,7 @@
                 return {
                     shiftType: '{{ old('type', '') }}',
                     workMinutes: {{ old('work_hours_required', 480) }},
+                    workingDays: {!! json_encode(old('working_days', [1,2,3,4,5])) !!},
 
                     formatWorkHours(minutes) {
                         if (!minutes) return '';
@@ -285,6 +376,10 @@
                             return `= ${hours} jam ${mins} menit`;
                         }
                         return `= ${hours} jam`;
+                    },
+
+                    setWorkingDays(days) {
+                        this.workingDays = days;
                     }
                 }
             }

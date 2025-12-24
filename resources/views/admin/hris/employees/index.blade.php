@@ -139,13 +139,13 @@
                                 x-transition:leave-end="transform opacity-0 scale-95"
                                 class="absolute left-0 mt-2 w-64 max-h-80 overflow-y-auto rounded-xl bg-white shadow-lg border border-gray-200 z-10">
                                 <div class="py-1">
-                                    <button @click="departmentFilter = 'all'; filterTable(); open = false"
+                                    <button @click="departmentFilter = 'all'; applyFilter(); open = false"
                                         class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                                         :class="departmentFilter === 'all' ? 'bg-indigo-50 text-indigo-700' : ''">
                                         Semua Departemen
                                     </button>
                                     @foreach($departments as $dept)
-                                        <button @click="departmentFilter = '{{ $dept->id }}'; filterTable(); open = false"
+                                        <button @click="departmentFilter = '{{ $dept->id }}'; applyFilter(); open = false"
                                             class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                                             :class="departmentFilter === '{{ $dept->id }}' ? 'bg-indigo-50 text-indigo-700' : ''">
                                             {{ $dept->name }}
@@ -175,22 +175,22 @@
                                 x-transition:leave-end="transform opacity-0 scale-95"
                                 class="absolute right-0 mt-2 w-48 rounded-xl bg-white shadow-lg border border-gray-200 z-10">
                                 <div class="py-1">
-                                    <button @click="statusFilter = 'all'; filterTable(); open = false"
+                                    <button @click="statusFilter = 'all'; applyFilter(); open = false"
                                         class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                                         :class="statusFilter === 'all' ? 'bg-indigo-50 text-indigo-700' : ''">
                                         Semua Status
                                     </button>
-                                    <button @click="statusFilter = 'active'; filterTable(); open = false"
+                                    <button @click="statusFilter = 'active'; applyFilter(); open = false"
                                         class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                                         :class="statusFilter === 'active' ? 'bg-indigo-50 text-indigo-700' : ''">
                                         Aktif
                                     </button>
-                                    <button @click="statusFilter = 'resigned'; filterTable(); open = false"
+                                    <button @click="statusFilter = 'resigned'; applyFilter(); open = false"
                                         class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                                         :class="statusFilter === 'resigned' ? 'bg-indigo-50 text-indigo-700' : ''">
                                         Resign
                                     </button>
-                                    <button @click="statusFilter = 'terminated'; filterTable(); open = false"
+                                    <button @click="statusFilter = 'terminated'; applyFilter(); open = false"
                                         class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                                         :class="statusFilter === 'terminated' ? 'bg-indigo-50 text-indigo-700' : ''">
                                         Terminate
@@ -471,29 +471,29 @@
 
         {{-- Toast Notification --}}
         <div x-data="{
-                                                                        show: false,
-                                                                        message: '',
-                                                                        type: 'success',
-                                                                        init() {
-                                                                            @if(session('success'))
-                                                                                this.notify('{{ session('success') }}', 'success');
-                                                                            @endif
-                                                                            @if(session('error'))
-                                                                                this.notify('{{ session('error') }}', 'error');
-                                                                            @endif
-                                                                            @if(session('info'))
-                                                                                this.notify('{{ session('info') }}', 'info');
-                                                                            @endif
-                                                                        },
-                                                                        notify(message, type = 'success') {
-                                                                            this.show = true;
-                                                                            this.message = message;
-                                                                            this.type = type;
-                                                                            setTimeout(() => {
-                                                                                this.show = false;
-                                                                            }, 3000);
-                                                                        }
-                                                                    }" x-show="show"
+                                                                            show: false,
+                                                                            message: '',
+                                                                            type: 'success',
+                                                                            init() {
+                                                                                @if(session('success'))
+                                                                                    this.notify('{{ session('success') }}', 'success');
+                                                                                @endif
+                                                                                @if(session('error'))
+                                                                                    this.notify('{{ session('error') }}', 'error');
+                                                                                @endif
+                                                                                @if(session('info'))
+                                                                                    this.notify('{{ session('info') }}', 'info');
+                                                                                @endif
+                                                                            },
+                                                                            notify(message, type = 'success') {
+                                                                                this.show = true;
+                                                                                this.message = message;
+                                                                                this.type = type;
+                                                                                setTimeout(() => {
+                                                                                    this.show = false;
+                                                                                }, 3000);
+                                                                            }
+                                                                        }" x-show="show"
             x-transition:enter="transition ease-out duration-300"
             x-transition:enter-start="opacity-0 transform translate-y-2"
             x-transition:enter-end="opacity-100 transform translate-y-0"
@@ -503,10 +503,10 @@
             class="fixed bottom-4 right-4 z-50 flex items-center w-full max-w-xs p-4 mb-4 text-gray-500 bg-white rounded-xl shadow-lg border border-gray-100"
             role="alert">
             <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="{
-                                                                            'text-green-500 bg-green-100': type === 'success',
-                                                                            'text-red-500 bg-red-100': type === 'error',
-                                                                            'text-blue-500 bg-blue-100': type === 'info'
-                                                                        }">
+                                                                                'text-green-500 bg-green-100': type === 'success',
+                                                                                'text-red-500 bg-red-100': type === 'error',
+                                                                                'text-blue-500 bg-blue-100': type === 'info'
+                                                                            }">
                 <template x-if="type === 'success'">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -549,9 +549,10 @@
 
             function tableFilters() {
                 return {
-                    searchQuery: '',
-                    departmentFilter: 'all',
-                    statusFilter: 'all',
+                    // ⭐ Initialize from server-provided values (from URL query params)
+                    searchQuery: '{{ $currentSearch ?? '' }}',
+                    departmentFilter: '{{ $currentDepartment ?? '' }}' || 'all',
+                    statusFilter: '{{ $currentStatus ?? '' }}' || 'all',
                     sortBy: 'name-asc',
                     noResults: false,
                     sortOptions: {
@@ -561,8 +562,26 @@
                         'newest': 'Terbaru Join'
                     },
 
+                    // ⭐ Apply filter via URL (server-side)
+                    applyFilter() {
+                        const params = new URLSearchParams();
+
+                        if (this.statusFilter && this.statusFilter !== 'all') {
+                            params.set('status', this.statusFilter);
+                        }
+                        if (this.searchQuery) {
+                            params.set('search', this.searchQuery);
+                        }
+                        if (this.departmentFilter && this.departmentFilter !== 'all') {
+                            params.set('department_id', this.departmentFilter);
+                        }
+
+                        const queryString = params.toString();
+                        window.location.href = '{{ route("hris.employees.index") }}' + (queryString ? '?' + queryString : '');
+                    },
+
                     get departmentFilterLabel() {
-                        if (this.departmentFilter === 'all') {
+                        if (this.departmentFilter === 'all' || !this.departmentFilter) {
                             return 'Semua Departemen';
                         }
                         // Get label from button text
@@ -573,6 +592,7 @@
                     get statusFilterLabel() {
                         const labels = {
                             'all': 'Semua Status',
+                            '': 'Semua Status',
                             'active': 'Aktif',
                             'resigned': 'Resign',
                             'terminated': 'Terminate'

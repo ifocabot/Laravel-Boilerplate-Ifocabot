@@ -21,6 +21,10 @@ class PayrollComponent extends Model
         'display_order',
         'show_on_slip',
         'is_active',
+        'rate_per_day',
+        'rate_per_hour',
+        'percentage_value',
+        'calculation_notes',
     ];
 
     protected $casts = [
