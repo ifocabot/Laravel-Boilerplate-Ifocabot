@@ -65,10 +65,13 @@ class ApprovalWorkflowController extends Controller
             'type' => 'required|string|max:50',
             'description' => 'nullable|string|max:500',
             'steps' => 'required|array|min:1',
-            'steps.*.approver_type' => 'required|in:direct_supervisor,position_level,specific_user,next_level_up,second_level_up',
+            'steps.*.approver_type' => 'required|in:direct_supervisor,position_level,specific_user,next_level_up,second_level_up,relative_level,role,department_head,cost_center_owner',
             'steps.*.approver_value' => 'nullable|string|max:100',
             'steps.*.is_required' => 'nullable|boolean',
             'steps.*.can_skip_if_same' => 'nullable|boolean',
+            'steps.*.on_resolution_fail' => 'nullable|in:fail_request,skip_step',
+            'steps.*.failure_message' => 'nullable|string|max:255',
+            'steps.*.conditions' => 'nullable|string', // JSON string
         ]);
 
         DB::beginTransaction();
@@ -83,6 +86,15 @@ class ApprovalWorkflowController extends Controller
 
             // Create steps
             foreach ($validated['steps'] as $index => $stepData) {
+                // Parse conditions from JSON string
+                $conditions = null;
+                if (!empty($stepData['conditions'])) {
+                    $parsed = json_decode($stepData['conditions'], true);
+                    // Filter out empty conditions
+                    $conditions = array_values(array_filter($parsed ?? [], fn($c) => !empty($c['field'])));
+                    $conditions = empty($conditions) ? null : $conditions;
+                }
+
                 ApprovalWorkflowStep::create([
                     'workflow_id' => $workflow->id,
                     'step_order' => $index + 1,
@@ -90,6 +102,9 @@ class ApprovalWorkflowController extends Controller
                     'approver_value' => $stepData['approver_value'] ?? null,
                     'is_required' => $stepData['is_required'] ?? true,
                     'can_skip_if_same' => $stepData['can_skip_if_same'] ?? true,
+                    'on_resolution_fail' => $stepData['on_resolution_fail'] ?? 'fail_request',
+                    'failure_message' => $stepData['failure_message'] ?? null,
+                    'conditions' => $conditions,
                 ]);
             }
 
@@ -131,7 +146,19 @@ class ApprovalWorkflowController extends Controller
         $levels = Level::orderBy('name')->get();
         $users = User::orderBy('name')->get();
 
-        return view('admin.approval-workflows.edit', compact('workflow', 'levels', 'users'));
+        // Prepare steps data for JavaScript
+        $stepsData = $workflow->steps->map(function ($s) {
+            return [
+                'approver_type' => $s->approver_type,
+                'approver_value' => $s->approver_value ?? '',
+                'can_skip_if_same' => $s->can_skip_if_same,
+                'on_resolution_fail' => $s->on_resolution_fail ?? 'fail_request',
+                'failure_message' => $s->failure_message ?? '',
+                'conditions' => $s->conditions ?? [],
+            ];
+        })->values();
+
+        return view('admin.approval-workflows.edit', compact('workflow', 'levels', 'users', 'stepsData'));
     }
 
     /**
@@ -147,10 +174,13 @@ class ApprovalWorkflowController extends Controller
             'description' => 'nullable|string|max:500',
             'is_active' => 'nullable|boolean',
             'steps' => 'required|array|min:1',
-            'steps.*.approver_type' => 'required|in:direct_supervisor,position_level,specific_user',
+            'steps.*.approver_type' => 'required|in:direct_supervisor,position_level,specific_user,next_level_up,second_level_up,relative_level,role,department_head,cost_center_owner',
             'steps.*.approver_value' => 'nullable|string|max:100',
             'steps.*.is_required' => 'nullable|boolean',
             'steps.*.can_skip_if_same' => 'nullable|boolean',
+            'steps.*.on_resolution_fail' => 'nullable|in:fail_request,skip_step',
+            'steps.*.failure_message' => 'nullable|string|max:255',
+            'steps.*.conditions' => 'nullable|string', // JSON string
         ]);
 
         DB::beginTransaction();
@@ -167,6 +197,15 @@ class ApprovalWorkflowController extends Controller
             $workflow->steps()->delete();
 
             foreach ($validated['steps'] as $index => $stepData) {
+                // Parse conditions from JSON string
+                $conditions = null;
+                if (!empty($stepData['conditions'])) {
+                    $parsed = json_decode($stepData['conditions'], true);
+                    // Filter out empty conditions
+                    $conditions = array_values(array_filter($parsed ?? [], fn($c) => !empty($c['field'])));
+                    $conditions = empty($conditions) ? null : $conditions;
+                }
+
                 ApprovalWorkflowStep::create([
                     'workflow_id' => $workflow->id,
                     'step_order' => $index + 1,
@@ -174,6 +213,9 @@ class ApprovalWorkflowController extends Controller
                     'approver_value' => $stepData['approver_value'] ?? null,
                     'is_required' => $stepData['is_required'] ?? true,
                     'can_skip_if_same' => $stepData['can_skip_if_same'] ?? true,
+                    'on_resolution_fail' => $stepData['on_resolution_fail'] ?? 'fail_request',
+                    'failure_message' => $stepData['failure_message'] ?? null,
+                    'conditions' => $conditions,
                 ]);
             }
 

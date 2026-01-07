@@ -47,10 +47,16 @@
                         <div class="flex items-start gap-4">
                             <dt class="text-sm font-medium text-gray-500 w-32">Tipe</dt>
                             <dd>
-                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold
-                                        {{ $workflow->type === 'leave' ? 'bg-blue-100 text-blue-700' : '' }}
-                                        {{ $workflow->type === 'overtime' ? 'bg-orange-100 text-orange-700' : '' }}
-                                        {{ $workflow->type === 'reimbursement' ? 'bg-purple-100 text-purple-700' : '' }}">
+                                @php
+                                    $typeColors = [
+                                        'leave' => 'bg-blue-100 text-blue-700',
+                                        'overtime' => 'bg-orange-100 text-orange-700',
+                                        'reimbursement' => 'bg-purple-100 text-purple-700',
+                                        'procurement' => 'bg-emerald-100 text-emerald-700',
+                                        'travel' => 'bg-cyan-100 text-cyan-700',
+                                    ];
+                                @endphp
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {{ $typeColors[$workflow->type] ?? 'bg-gray-100 text-gray-700' }}">
                                     {{ ucfirst($workflow->type) }}
                                 </span>
                             </dd>
@@ -81,16 +87,38 @@
                                     class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-bold flex-shrink-0">
                                     {{ $step->step_order }}
                                 </span>
-                                <div class="flex-1">
+                                <div class="flex-1 min-w-0">
                                     <p class="text-sm font-medium text-gray-900">{{ $step->approver_type_label }}</p>
                                     @if($step->approver_value)
-                                        <p class="text-xs text-gray-500">ID: {{ $step->approver_value }}</p>
+                                        <p class="text-xs text-gray-500">Nilai: {{ $step->approver_value }}</p>
                                     @endif
-                                    @if($step->can_skip_if_same)
-                                        <span
-                                            class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600 mt-1">
-                                            Skip jika sama
-                                        </span>
+                                    
+                                    {{-- Badges --}}
+                                    <div class="flex flex-wrap gap-1 mt-1">
+                                        @if($step->can_skip_if_same)
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
+                                                Skip jika sama
+                                            </span>
+                                        @endif
+                                        @if($step->on_resolution_fail === 'skip_step')
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-700">
+                                                Skip jika gagal
+                                            </span>
+                                        @endif
+                                    </div>
+
+                                    {{-- Conditions --}}
+                                    @if($step->conditions && count($step->conditions) > 0)
+                                        <div class="mt-2 p-2 bg-gray-50 rounded-lg">
+                                            <p class="text-xs font-medium text-gray-500 mb-1">Kondisi:</p>
+                                            @foreach($step->conditions as $condition)
+                                                <p class="text-xs text-gray-600">
+                                                    <code class="bg-gray-200 px-1 rounded">{{ $condition['field'] ?? '-' }}</code>
+                                                    {{ $condition['operator'] ?? '=' }}
+                                                    <span class="font-medium">{{ $condition['value'] ?? '-' }}</span>
+                                                </p>
+                                            @endforeach
+                                        </div>
                                     @endif
                                 </div>
                             </div>

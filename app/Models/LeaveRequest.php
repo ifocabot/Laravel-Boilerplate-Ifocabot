@@ -58,15 +58,40 @@ class LeaveRequest extends Model
     }
 
     /**
+     * Get approval context for condition evaluation and resolver
+     */
+    public function getApprovalContext(): array
+    {
+        $employee = $this->employee;
+        $currentCareer = $employee?->current_career;
+
+        return [
+            'requester_user_id' => $employee?->user_id,
+            'requester_level_id' => $currentCareer?->level_id,
+            'requester_level' => $currentCareer?->level?->approval_order,
+            'department_id' => $currentCareer?->department_id,
+            'leave_type_id' => $this->leave_type_id,
+            'leave_type_name' => $this->leaveType?->name,
+            'days_requested' => $this->total_days,
+            'start_date' => $this->start_date?->format('Y-m-d'),
+            'end_date' => $this->end_date?->format('Y-m-d'),
+        ];
+    }
+
+    /**
      * ⭐ Callback when workflow is fully approved
      * This triggers balance deduction and attendance sync
      */
-    public function onWorkflowApproved(int $approverId): void
+    public function onWorkflowApproved(\App\Models\ApprovalRequest $request): void
     {
         // Skip if already approved
         if ($this->status === self::STATUS_APPROVED) {
             return;
         }
+
+        // Get last approver from the request
+        $lastStep = $request->steps()->whereNotNull('actioned_at')->orderBy('step_order', 'desc')->first();
+        $approverId = $lastStep?->approver_id ?? auth()->id();
 
         // Deduct from balance
         $balance = EmployeeLeaveBalance::getOrCreate(
@@ -100,13 +125,16 @@ class LeaveRequest extends Model
     /**
      * ⭐ Callback when workflow is rejected
      */
-    public function onWorkflowRejected(int $approverId, ?string $reason = null): void
+    public function onWorkflowRejected(\App\Models\ApprovalRequest $request, ?string $reason = null): void
     {
+        $lastStep = $request->steps()->whereNotNull('actioned_at')->orderBy('step_order', 'desc')->first();
+        $approverId = $lastStep?->approver_id ?? auth()->id();
+
         $this->update([
             'status' => self::STATUS_REJECTED,
             'approved_by' => $approverId,
             'approved_at' => now(),
-            'rejection_reason' => $reason,
+            'rejection_reason' => $reason ?? $lastStep?->notes,
         ]);
 
         \Log::info('Leave request rejected via workflow', [

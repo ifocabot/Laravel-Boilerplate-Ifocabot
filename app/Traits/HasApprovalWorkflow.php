@@ -2,6 +2,7 @@
 
 namespace App\Traits;
 
+use App\Contracts\Approvable;
 use App\Models\ApprovalRequest;
 use App\Services\ApprovalWorkflowService;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
@@ -9,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
 /**
  * Trait for models that require approval workflow
  * Use this trait in models like LeaveRequest, OvertimeRequest, etc.
+ * 
+ * Models should also implement App\Contracts\Approvable for full ERP support.
  */
 trait HasApprovalWorkflow
 {
@@ -17,6 +20,26 @@ trait HasApprovalWorkflow
      * Override this in your model
      */
     abstract public function getWorkflowType(): string;
+
+    /**
+     * Get the approval context for condition evaluation
+     * 
+     * Override this in your model to provide context for:
+     * - Step condition evaluation
+     * - Resolver context (department, level, amount, etc.)
+     * - Audit trail snapshot
+     * 
+     * @deprecated in complex workflows - implement Approvable interface instead
+     * @return array<string, mixed>
+     */
+    public function getApprovalContext(): array
+    {
+        // Default implementation returns basic context
+        // Override in model for richer context
+        return [
+            'requester_id' => $this->getRequesterId(),
+        ];
+    }
 
     /**
      * Get the requester employee ID
@@ -82,6 +105,14 @@ trait HasApprovalWorkflow
     }
 
     /**
+     * Check if this request needs configuration
+     */
+    public function needsConfiguration(): bool
+    {
+        return $this->approvalRequest?->status === ApprovalRequest::STATUS_NEEDS_CONFIGURATION;
+    }
+
+    /**
      * Get the current approval step
      */
     public function getCurrentApprovalStep(): ?int
@@ -117,24 +148,55 @@ trait HasApprovalWorkflow
      * Callback when workflow is fully approved
      * Override this in your model to add custom logic
      * 
-     * @param int $approverId The user ID who gave final approval
+     * @param ApprovalRequest $request The approval request with all details
      */
-    public function onWorkflowApproved(int $approverId): void
+    public function onWorkflowApproved(ApprovalRequest $request): void
     {
         // Default implementation does nothing
         // Override in model for custom behavior
+        // 
+        // Example:
+        // $this->update(['status' => 'approved']);
     }
 
     /**
      * Callback when workflow is rejected
      * Override this in your model to add custom logic
      * 
-     * @param int $approverId The user ID who rejected
+     * @param ApprovalRequest $request The approval request with rejection details
      * @param string|null $reason Rejection reason
      */
-    public function onWorkflowRejected(int $approverId, ?string $reason = null): void
+    public function onWorkflowRejected(ApprovalRequest $request, ?string $reason = null): void
     {
         // Default implementation does nothing
         // Override in model for custom behavior
+        //
+        // Example:
+        // $this->update(['status' => 'rejected', 'rejection_reason' => $reason]);
+    }
+
+    /**
+     * Get the approval audit log
+     */
+    public function getApprovalAuditLog()
+    {
+        $request = $this->approvalRequest;
+
+        if (!$request) {
+            return collect();
+        }
+
+        return $request->events()
+            ->with(['actor'])
+            ->orderBy('created_at', 'asc')
+            ->get();
+    }
+
+    /**
+     * Get failure reason if request needs configuration
+     */
+    public function getApprovalFailureReason(): ?string
+    {
+        return $this->approvalRequest?->failure_reason;
     }
 }

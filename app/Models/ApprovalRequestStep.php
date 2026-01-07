@@ -9,8 +9,15 @@ class ApprovalRequestStep extends Model
 {
     protected $fillable = [
         'approval_request_id',
+        'workflow_step_id',
         'step_order',
+        'approver_type',
+        'approver_value',
+        'conditions_snapshot',
         'approver_id',
+        'resolver_type',
+        'skip_reason',
+        'resolved_at',
         'status',
         'notes',
         'actioned_at',
@@ -18,6 +25,8 @@ class ApprovalRequestStep extends Model
 
     protected $casts = [
         'step_order' => 'integer',
+        'conditions_snapshot' => 'array',
+        'resolved_at' => 'datetime',
         'actioned_at' => 'datetime',
     ];
 
@@ -30,6 +39,13 @@ class ApprovalRequestStep extends Model
     public const STATUS_SKIPPED = 'skipped';
 
     /**
+     * Skip reasons
+     */
+    public const SKIP_CONDITION_NOT_MET = 'condition_not_met';
+    public const SKIP_SAME_APPROVER = 'same_approver';
+    public const SKIP_APPROVER_NOT_FOUND = 'approver_not_found';
+
+    /**
      * ========================================
      * RELATIONSHIPS
      * ========================================
@@ -38,6 +54,11 @@ class ApprovalRequestStep extends Model
     public function approvalRequest(): BelongsTo
     {
         return $this->belongsTo(ApprovalRequest::class);
+    }
+
+    public function workflowStep(): BelongsTo
+    {
+        return $this->belongsTo(ApprovalWorkflowStep::class, 'workflow_step_id');
     }
 
     public function approver(): BelongsTo
@@ -64,6 +85,11 @@ class ApprovalRequestStep extends Model
     public function scopeRejected($query)
     {
         return $query->where('status', self::STATUS_REJECTED);
+    }
+
+    public function scopeSkipped($query)
+    {
+        return $query->where('status', self::STATUS_SKIPPED);
     }
 
     /**
@@ -99,12 +125,25 @@ class ApprovalRequestStep extends Model
     /**
      * Skip this step
      */
-    public function skip(?string $notes = null): void
+    public function skip(string $reason, ?string $notes = null): void
     {
         $this->update([
             'status' => self::STATUS_SKIPPED,
-            'notes' => $notes ?? 'Skipped automatically',
+            'skip_reason' => $reason,
+            'notes' => $notes ?? $this->getSkipReasonLabel($reason),
             'actioned_at' => now(),
+        ]);
+    }
+
+    /**
+     * Mark as resolved with approver
+     */
+    public function markResolved(int $approverId, string $resolverType): void
+    {
+        $this->update([
+            'approver_id' => $approverId,
+            'resolver_type' => $resolverType,
+            'resolved_at' => now(),
         ]);
     }
 
@@ -114,6 +153,29 @@ class ApprovalRequestStep extends Model
     public function isPending(): bool
     {
         return $this->status === self::STATUS_PENDING;
+    }
+
+    /**
+     * Check if this step is skipped
+     */
+    public function isSkipped(): bool
+    {
+        return $this->status === self::STATUS_SKIPPED;
+    }
+
+    /**
+     * Get skip reason label
+     */
+    public function getSkipReasonLabel(?string $reason = null): string
+    {
+        $reason = $reason ?? $this->skip_reason;
+
+        return match ($reason) {
+            self::SKIP_CONDITION_NOT_MET => 'Kondisi step tidak terpenuhi',
+            self::SKIP_SAME_APPROVER => 'Approver sama dengan step sebelumnya',
+            self::SKIP_APPROVER_NOT_FOUND => 'Tidak dapat menemukan approver',
+            default => $reason ?? 'Dilewati',
+        };
     }
 
     /**
