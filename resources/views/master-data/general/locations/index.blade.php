@@ -42,84 +42,92 @@
         </div>
 
         {{-- Stats Cards --}}
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {{-- Total Locations --}}
-            <div class="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
-                <div class="flex items-center justify-between mb-4">
+            <div class="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-5 text-white shadow-lg">
+                <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-indigo-100">Total Lokasi</p>
-                        <h3 class="text-3xl font-bold mt-2">{{ $locations->count() }}</h3>
+                        <p class="text-xs font-medium text-indigo-100">Total Lokasi</p>
+                        <h3 class="text-2xl font-bold mt-1">{{ $locations->total() }}</h3>
                     </div>
-                    <div class="bg-white/20 rounded-xl p-3">
-                        <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <div class="bg-white/20 rounded-lg p-2">
+                        <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         </svg>
                     </div>
                 </div>
             </div>
 
             {{-- Active Locations --}}
-            <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                <div class="flex items-center justify-between mb-4">
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-500">Aktif</p>
-                        <h3 class="text-3xl font-bold text-gray-900 mt-2">{{ $activeLocations ?? 0 }}</h3>
+                        <p class="text-xs font-medium text-gray-500">Aktif</p>
+                        <h3 class="text-2xl font-bold text-gray-900 mt-1">{{ $activeLocations ?? 0 }}</h3>
                     </div>
-                    <div class="bg-green-50 rounded-xl p-3">
-                        <svg class="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <div class="bg-green-50 rounded-lg p-2">
+                        <svg class="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
                 </div>
             </div>
 
             {{-- Parent Locations --}}
-            <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                <div class="flex items-center justify-between mb-4">
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-500">Induk Lokasi</p>
-                        <h3 class="text-3xl font-bold text-gray-900 mt-2">{{ $parentLocations ?? 0 }}</h3>
+                        <p class="text-xs font-medium text-gray-500">Induk</p>
+                        <h3 class="text-2xl font-bold text-gray-900 mt-1">{{ $parentLocations ?? 0 }}</h3>
                     </div>
-                    <div class="bg-purple-50 rounded-xl p-3">
-                        <svg class="w-8 h-8 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    <div class="bg-purple-50 rounded-lg p-2">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                         </svg>
                     </div>
                 </div>
             </div>
 
             {{-- Sub Locations --}}
-            <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                <div class="flex items-center justify-between mb-4">
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-500">Sub Lokasi</p>
-                        <h3 class="text-3xl font-bold text-gray-900 mt-2">{{ $subLocations ?? 0 }}</h3>
+                        <p class="text-xs font-medium text-gray-500">Sub</p>
+                        <h3 class="text-2xl font-bold text-gray-900 mt-1">{{ $subLocations ?? 0 }}</h3>
                     </div>
-                    <div class="bg-blue-50 rounded-xl p-3">
-                        <svg class="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                    <div class="bg-blue-50 rounded-lg p-2">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                         </svg>
                     </div>
                 </div>
             </div>
 
             {{-- With Geo-fence --}}
-            <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                <div class="flex items-center justify-between mb-4">
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-500">Geo-fence</p>
-                        <h3 class="text-3xl font-bold text-gray-900 mt-2">{{ $withGeofence ?? 0 }}</h3>
+                        <p class="text-xs font-medium text-gray-500">Geofence</p>
+                        <h3 class="text-2xl font-bold text-gray-900 mt-1">{{ $withGeofence ?? 0 }}</h3>
                     </div>
-                    <div class="bg-amber-50 rounded-xl p-3">
-                        <svg class="w-8 h-8 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                    <div class="bg-amber-50 rounded-lg p-2">
+                        <svg class="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Stock Locations --}}
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-gray-500">Stok</p>
+                        <h3 class="text-2xl font-bold text-gray-900 mt-1">{{ $stockLocations ?? 0 }}</h3>
+                    </div>
+                    <div class="bg-teal-50 rounded-lg p-2">
+                        <svg class="w-6 h-6 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                         </svg>
                     </div>
                 </div>
@@ -207,11 +215,16 @@
                                 x-transition:leave-start="transform opacity-100 scale-100"
                                 x-transition:leave-end="transform opacity-0 scale-95"
                                 class="absolute right-0 mt-2 w-48 rounded-xl bg-white shadow-lg border border-gray-200 z-10">
-                                <div class="py-1">
+                                <div class="py-1 max-h-64 overflow-y-auto">
                                     <button @click="typeFilter = 'all'; filterTable(); open = false"
                                         class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                                         :class="typeFilter === 'all' ? 'bg-indigo-50 text-indigo-700' : ''">
                                         Semua Tipe
+                                    </button>
+                                    <button @click="typeFilter = 'site'; filterTable(); open = false"
+                                        class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                        :class="typeFilter === 'site' ? 'bg-indigo-50 text-indigo-700' : ''">
+                                        Site
                                     </button>
                                     <button @click="typeFilter = 'office'; filterTable(); open = false"
                                         class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
@@ -223,15 +236,35 @@
                                         :class="typeFilter === 'warehouse' ? 'bg-indigo-50 text-indigo-700' : ''">
                                         Gudang
                                     </button>
-                                    <button @click="typeFilter = 'store'; filterTable(); open = false"
+                                    <button @click="typeFilter = 'zone'; filterTable(); open = false"
                                         class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                                        :class="typeFilter === 'store' ? 'bg-indigo-50 text-indigo-700' : ''">
-                                        Retail
+                                        :class="typeFilter === 'zone' ? 'bg-indigo-50 text-indigo-700' : ''">
+                                        Zone
+                                    </button>
+                                    <button @click="typeFilter = 'rack'; filterTable(); open = false"
+                                        class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                        :class="typeFilter === 'rack' ? 'bg-indigo-50 text-indigo-700' : ''">
+                                        Rak
                                     </button>
                                     <button @click="typeFilter = 'bin'; filterTable(); open = false"
                                         class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                                         :class="typeFilter === 'bin' ? 'bg-indigo-50 text-indigo-700' : ''">
-                                        Bin/Rak
+                                        Bin
+                                    </button>
+                                    <button @click="typeFilter = 'room'; filterTable(); open = false"
+                                        class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                        :class="typeFilter === 'room' ? 'bg-indigo-50 text-indigo-700' : ''">
+                                        Ruangan
+                                    </button>
+                                    <button @click="typeFilter = 'floor'; filterTable(); open = false"
+                                        class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                        :class="typeFilter === 'floor' ? 'bg-indigo-50 text-indigo-700' : ''">
+                                        Lantai
+                                    </button>
+                                    <button @click="typeFilter = 'store'; filterTable(); open = false"
+                                        class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                        :class="typeFilter === 'store' ? 'bg-indigo-50 text-indigo-700' : ''">
+                                        Retail
                                     </button>
                                 </div>
                             </div>
@@ -604,10 +637,9 @@
                                     <select name="type" id="location_type" required x-model="locationType"
                                         class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all @error('type') border-red-500 @enderror">
                                         <option value="">Pilih Tipe</option>
-                                        <option value="office" {{ old('type') == 'office' ? 'selected' : '' }}>Kantor</option>
-                                        <option value="warehouse" {{ old('type') == 'warehouse' ? 'selected' : '' }}>Gudang</option>
-                                        <option value="store" {{ old('type') == 'store' ? 'selected' : '' }}>Retail</option>
-                                        <option value="bin" {{ old('type') == 'bin' ? 'selected' : '' }}>Bin/Rak</option>
+                                        @foreach(\App\Models\Location::getTypeOptions() as $value => $label)
+                                            <option value="{{ $value }}">{{ $label }}</option>
+                                        @endforeach
                                     </select>
                                     @error('type')
                                         <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
@@ -681,6 +713,42 @@
                                         <option value="1">Aktif</option>
                                         <option value="0">Nonaktif</option>
                                     </select>
+                                </div>
+
+                                {{-- ERP Flags Section --}}
+                                <div class="md:col-span-2 bg-gray-50 rounded-xl p-4">
+                                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Pengaturan Modul</h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        {{-- Geofence Flag --}}
+                                        <label class="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 cursor-pointer hover:border-indigo-300 transition-colors">
+                                            <input type="checkbox" name="is_geofence_enabled" value="1" x-model="isGeofenceEnabled"
+                                                class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                            <div>
+                                                <span class="text-sm font-medium text-gray-900">Geofence</span>
+                                                <p class="text-xs text-gray-500 mt-0.5">Aktifkan untuk absensi berbasis lokasi</p>
+                                            </div>
+                                        </label>
+
+                                        {{-- Stock Location Flag --}}
+                                        <label class="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 cursor-pointer hover:border-indigo-300 transition-colors">
+                                            <input type="checkbox" name="is_stock_location" value="1" x-model="isStockLocation"
+                                                class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                            <div>
+                                                <span class="text-sm font-medium text-gray-900">Lokasi Stok</span>
+                                                <p class="text-xs text-gray-500 mt-0.5">Digunakan untuk inventory/gudang</p>
+                                            </div>
+                                        </label>
+
+                                        {{-- Assignable to Employee Flag --}}
+                                        <label class="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 cursor-pointer hover:border-indigo-300 transition-colors">
+                                            <input type="checkbox" name="is_assignable_to_employee" value="1" x-model="isAssignableToEmployee"
+                                                class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                            <div>
+                                                <span class="text-sm font-medium text-gray-900">Lokasi Kerja</span>
+                                                <p class="text-xs text-gray-500 mt-0.5">Dapat ditugaskan ke karyawan</p>
+                                            </div>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
 
@@ -806,6 +874,9 @@
                     radiusMeters: '',
                     isActive: 1,
                     parentId: '',
+                    isGeofenceEnabled: false,
+                    isStockLocation: false,
+                    isAssignableToEmployee: true,
                     allExpanded: false,
 
                     init() {
@@ -827,6 +898,9 @@
                         this.radiusMeters = '';
                         this.isActive = 1;
                         this.parentId = '';
+                        this.isGeofenceEnabled = false;
+                        this.isStockLocation = false;
+                        this.isAssignableToEmployee = true;
                         this.showModal = true;
                     },
 
@@ -859,6 +933,9 @@
                             this.radiusMeters = '';
                             this.isActive = 1;
                             this.parentId = '';
+                            this.isGeofenceEnabled = false;
+                            this.isStockLocation = false;
+                            this.isAssignableToEmployee = true;
                         }, 300);
                     },
 
@@ -943,10 +1020,15 @@
                     get typeFilterLabel() {
                         const labels = {
                             'all': 'Semua Tipe',
+                            'site': 'Site',
                             'office': 'Kantor',
                             'warehouse': 'Gudang',
-                            'store': 'Retail',
-                            'bin': 'Bin/Rak'
+                            'zone': 'Zone',
+                            'rack': 'Rak',
+                            'bin': 'Bin',
+                            'room': 'Ruangan',
+                            'floor': 'Lantai',
+                            'store': 'Retail'
                         };
                         return labels[this.typeFilter] || 'Semua Tipe';
                     },
