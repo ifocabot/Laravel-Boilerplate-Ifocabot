@@ -188,6 +188,11 @@ class PayrollPeriodController extends Controller
 
     /**
      * Generate slips for all active employees
+     * 
+     * Flow: 
+     * 1. Generate AttendancePeriodSummary for each employee (aggregate daily data)
+     * 2. Lock period summaries
+     * 3. Create PayrollSlip from locked summaries
      */
     public function generateSlips($id)
     {
@@ -221,13 +226,46 @@ class PayrollPeriodController extends Controller
                     ->with('error', 'Tidak ada karyawan aktif yang ditemukan.');
             }
 
+            // ========================================
+            // STEP 1: Generate Period Summaries for all employees
+            // ========================================
+            $periodSummaries = [];
+            foreach ($employees as $employee) {
+                $periodSummaries[$employee->id] = \App\Models\AttendancePeriodSummary::generateFromDailySummaries(
+                    $employee->id,
+                    $period->id,
+                    $period->start_date,
+                    $period->end_date,
+                    auth()->id()
+                );
+            }
+
+            // ========================================
+            // STEP 2: Lock all period summaries
+            // ========================================
+            foreach ($periodSummaries as $periodSummary) {
+                if (!$periodSummary->is_locked) {
+                    $periodSummary->lock(auth()->id());
+                }
+            }
+
+            // Lock attendance on period level
+            $period->update([
+                'attendance_locked' => true,
+                'attendance_locked_at' => now(),
+                'attendance_locked_by' => auth()->id(),
+            ]);
+
+            // ========================================
+            // STEP 3: Create slips from locked period summaries
+            // ========================================
             $slipsCreated = 0;
             $errors = [];
 
             foreach ($employees as $employee) {
                 try {
-                    // Generate slip for this employee
-                    $this->createSlipForEmployee($period, $employee);
+                    $periodSummary = $periodSummaries[$employee->id];
+                    $this->createSlipFromPeriodSummary($period, $employee, $periodSummary);
                     $slipsCreated++;
                 } catch (\Exception $e) {
                     $errors[] = "Error creating slip for {$employee->full_name}: " . $e->getMessage();
@@ -249,10 +287,11 @@ class PayrollPeriodController extends Controller
             Log::info('Payroll slips generated', [
                 'period_id' => $period->id,
                 'slips_created' => $slipsCreated,
+                'period_summaries_generated' => count($periodSummaries),
                 'errors_count' => count($errors),
             ]);
 
-            $message = "{$slipsCreated} slip gaji berhasil di-generate.";
+            $message = "{$slipsCreated} slip gaji berhasil di-generate dari " . count($periodSummaries) . " period summaries.";
             if (count($errors) > 0) {
                 $message .= " " . count($errors) . " slip gagal dibuat. Cek log untuk detail.";
             }
@@ -284,51 +323,115 @@ class PayrollPeriodController extends Controller
         // Get current career history
         $currentCareer = $employee->currentCareer;
 
-        // Prepare earnings array
+        // ========================================
+        // ATTENDANCE DATA FROM SUMMARIES
+        // ========================================
+        $attendanceSummaries = \App\Models\AttendanceSummary::where('employee_id', $employee->id)
+            ->whereBetween('date', [$period->start_date, $period->end_date])
+            ->get();
+
+        // Calculate attendance statistics
+        $presentDays = $attendanceSummaries->whereIn('status', ['present', 'late'])->count();
+        $lateDays = $attendanceSummaries->where('status', 'late')->count();
+        $absentDays = $attendanceSummaries->whereIn('status', ['absent', 'alpha'])->count();
+        $leaveDays = $attendanceSummaries->whereIn('status', ['leave', 'sick', 'permission'])->count();
+        $offDays = $attendanceSummaries->whereIn('status', ['offday', 'holiday'])->count();
+
+        // Total scheduled working days (exclude offday/holiday)
+        $scheduledWorkingDays = $attendanceSummaries->whereNotIn('status', ['offday', 'holiday'])->count();
+
+        // If no attendance data, calculate from schedules
+        if ($scheduledWorkingDays === 0) {
+            $scheduledWorkingDays = \App\Models\EmployeeSchedule::where('employee_id', $employee->id)
+                ->whereBetween('date', [$period->start_date, $period->end_date])
+                ->where('is_day_off', false)
+                ->where('is_holiday', false)
+                ->count();
+        }
+
+        // Overtime data
+        $totalOvertimeMinutes = $attendanceSummaries->sum('approved_overtime_minutes') ?: 0;
+        $totalLateMinutes = $attendanceSummaries->sum('late_minutes') ?: 0;
+
+        // ========================================
+        // EARNINGS CALCULATION
+        // ========================================
         $earnings = [];
         $totalEarnings = 0;
 
         foreach ($employee->activePayrollComponents as $component) {
             if ($component->component->type === 'earning') {
+                $amount = $component->amount;
+
+                // Prorate based on attendance for basic salary
+                if ($component->component->code === 'BASIC_SALARY' && $scheduledWorkingDays > 0) {
+                    // Prorate: (present days / scheduled days) * amount
+                    $attendanceRatio = $presentDays / $scheduledWorkingDays;
+                    $amount = round($component->amount * $attendanceRatio, 0);
+                }
+
+                // Daily allowances like MEAL should be per present day
+                if (in_array($component->component->code, ['MEAL', 'TRANSPORT'])) {
+                    // If stored as monthly, prorate to present days
+                    // Assuming 22 working days per month as standard
+                    $dailyRate = $component->amount / 22;
+                    $amount = round($dailyRate * $presentDays, 0);
+                }
+
                 $earnings[] = [
                     'code' => $component->component->code,
                     'name' => $component->component->name,
                     'category' => $component->component->category,
                     'type' => 'earning',
-                    'amount' => $component->amount,
+                    'amount' => $amount,
                     'is_taxable' => $component->component->is_taxable,
                 ];
-                $totalEarnings += $component->amount;
+                $totalEarnings += $amount;
             }
         }
 
-        // Calculate tax (simplified PPh21 - you should implement proper calculation)
-        $taxableIncome = collect($earnings)->where('is_taxable', true)->sum('amount');
+        // Add overtime earnings
+        if ($totalOvertimeMinutes > 0) {
+            $basicSalary = collect($earnings)->where('code', 'BASIC_SALARY')->first()['amount'] ?? 0;
+            $hourlyRate = $basicSalary > 0 ? $basicSalary / 173 : 0; // 173 hours/month standard
+            $overtimeAmount = round(($totalOvertimeMinutes / 60) * $hourlyRate * 1.5, 0);
 
-        // Get tax status from sensitive data or default
+            $earnings[] = [
+                'code' => 'OVERTIME',
+                'name' => 'Lembur (' . round($totalOvertimeMinutes / 60, 1) . ' jam)',
+                'category' => 'variable_allowance',
+                'type' => 'earning',
+                'amount' => $overtimeAmount,
+                'is_taxable' => true,
+            ];
+            $totalEarnings += $overtimeAmount;
+        }
+
+        // ========================================
+        // DEDUCTIONS CALCULATION
+        // ========================================
+        $taxableIncome = collect($earnings)->where('is_taxable', true)->sum('amount');
         $taxStatus = $employee->sensitiveData?->tax_status ?? 'TK/0';
         $taxAmount = $this->calculateTax($taxableIncome, $taxStatus);
 
-        // Calculate BPJS
+        // Calculate BPJS from base salary
         $bpjsBase = collect($earnings)
-            ->filter(function ($earning) {
-                return $earning['category'] === 'basic_salary';
-            })
+            ->filter(fn($earning) => $earning['category'] === 'basic_salary')
             ->sum('amount');
 
-        $bpjsTkEmployee = $bpjsBase * 0.02; // 2%
-        $bpjsKesEmployee = $bpjsBase * 0.01; // 1%
-        $bpjsTkCompany = $bpjsBase * 0.0374; // 3.74%
-        $bpjsKesCompany = $bpjsBase * 0.04; // 4%
+        $bpjsTkEmployee = round($bpjsBase * 0.02, 0);
+        $bpjsKesEmployee = round($bpjsBase * 0.01, 0);
+        $bpjsTkCompany = round($bpjsBase * 0.0374, 0);
+        $bpjsKesCompany = round($bpjsBase * 0.04, 0);
 
-        // Prepare deductions array
+        // Deductions array
         $deductions = [
             [
                 'code' => 'TAX_PPH21',
                 'name' => 'PPh 21',
                 'category' => 'statutory',
                 'type' => 'deduction',
-                'amount' => $taxAmount,
+                'amount' => round($taxAmount, 0),
             ],
             [
                 'code' => 'BPJS_TK_EMPLOYEE',
@@ -345,6 +448,33 @@ class PayrollPeriodController extends Controller
                 'amount' => $bpjsKesEmployee,
             ],
         ];
+
+        // Add late deduction
+        if ($totalLateMinutes > 0) {
+            $lateDeduction = round($totalLateMinutes * 1000, 0); // Rp1.000/menit telat
+            $deductions[] = [
+                'code' => 'LATE_DEDUCTION',
+                'name' => 'Potongan Terlambat (' . $totalLateMinutes . ' menit)',
+                'category' => 'other_deduction',
+                'type' => 'deduction',
+                'amount' => $lateDeduction,
+            ];
+        }
+
+        // Add absent deduction
+        if ($absentDays > 0) {
+            $basicSalaryAmount = collect($earnings)->where('code', 'BASIC_SALARY')->first()['amount'] ?? 0;
+            $dailyRate = $scheduledWorkingDays > 0 ? $basicSalaryAmount / $scheduledWorkingDays : 0;
+            $absentDeduction = round($dailyRate * $absentDays, 0);
+
+            $deductions[] = [
+                'code' => 'ABSENT_DEDUCTION',
+                'name' => 'Potongan Alpha (' . $absentDays . ' hari)',
+                'category' => 'other_deduction',
+                'type' => 'deduction',
+                'amount' => $absentDeduction,
+            ];
+        }
 
         // Add other deductions from employee components
         foreach ($employee->activePayrollComponents as $component) {
@@ -365,9 +495,6 @@ class PayrollPeriodController extends Controller
         // Generate slip number
         $slipNumber = PayrollSlip::generateSlipNumber($period->period_code, $employee->nik);
 
-        // Calculate working days
-        $workingDays = $period->start_date->diffInDays($period->end_date) + 1;
-
         // Create slip
         return PayrollSlip::create([
             'payroll_period_id' => $period->id,
@@ -382,11 +509,11 @@ class PayrollPeriodController extends Controller
             'position' => $currentCareer?->position?->name,
             'level' => $currentCareer?->level?->grade_code,
 
-            // Working days (simplified - should be calculated from attendance)
-            'working_days' => $workingDays,
-            'actual_days' => $workingDays,
-            'absent_days' => 0,
-            'leave_days' => 0,
+            // Working days from attendance
+            'working_days' => $scheduledWorkingDays,
+            'actual_days' => $presentDays,
+            'absent_days' => $absentDays,
+            'leave_days' => $leaveDays,
 
             // Components
             'earnings' => $earnings,
@@ -395,12 +522,267 @@ class PayrollPeriodController extends Controller
             // Totals
             'gross_salary' => $totalEarnings,
             'total_deductions' => $totalDeductions,
-            'net_salary' => $netSalary,
+            'net_salary' => max(0, $netSalary),
 
             // Tax
             'tax_status' => $taxStatus,
             'taxable_income' => $taxableIncome,
-            'tax_amount' => $taxAmount,
+            'tax_amount' => round($taxAmount, 0),
+
+            // BPJS
+            'bpjs_tk_company' => $bpjsTkCompany,
+            'bpjs_tk_employee' => $bpjsTkEmployee,
+            'bpjs_kes_company' => $bpjsKesCompany,
+            'bpjs_kes_employee' => $bpjsKesEmployee,
+
+            // Payment
+            'payment_status' => 'pending',
+
+            // Bank snapshot
+            'bank_name' => $employee->sensitiveData?->bank_name,
+            'bank_account_number' => $employee->sensitiveData?->bank_account_number,
+            'bank_account_holder' => $employee->sensitiveData?->bank_account_holder,
+        ]);
+    }
+
+    /**
+     * Create slip from LOCKED AttendancePeriodSummary
+     * This is the correct flow: reads from aggregated, locked data
+     * 
+     * @param PayrollPeriod $period
+     * @param Employee $employee
+     * @param \App\Models\AttendancePeriodSummary $periodSummary (must be locked)
+     */
+    private function createSlipFromPeriodSummary(
+        PayrollPeriod $period,
+        Employee $employee,
+        \App\Models\AttendancePeriodSummary $periodSummary
+    ) {
+        // Get current career history
+        $currentCareer = $employee->currentCareer;
+
+        // ========================================
+        // ATTENDANCE DATA FROM LOCKED PERIOD SUMMARY
+        // ========================================
+        $presentDays = $periodSummary->present_days;
+        $lateDays = $periodSummary->late_days;
+        $absentDays = $periodSummary->alpha_days;
+        $leaveDays = $periodSummary->leave_days + $periodSummary->sick_days + $periodSummary->permission_days;
+        $scheduledWorkingDays = $periodSummary->scheduled_work_days;
+        $totalOvertimeMinutes = $periodSummary->total_approved_overtime_minutes;
+        $totalLateMinutes = $periodSummary->total_late_minutes;
+
+        // Fallback if no schedule data
+        if ($scheduledWorkingDays <= 0) {
+            $scheduledWorkingDays = 22; // Default 22 working days
+        }
+
+        // ========================================
+        // EARNINGS CALCULATION
+        // ========================================
+        $earnings = [];
+        $totalEarnings = 0;
+
+        foreach ($employee->activePayrollComponents as $empComponent) {
+            $component = $empComponent->component;
+
+            if ($component->type === 'earning') {
+                $amount = $empComponent->amount;
+
+                // Calculate attendance rate for checks
+                $attendanceRate = $scheduledWorkingDays > 0
+                    ? ($presentDays / $scheduledWorkingDays) * 100
+                    : 100;
+
+                // CHECK: Minimum attendance requirement
+                if ($component->min_attendance_percent && $attendanceRate < $component->min_attendance_percent) {
+                    $amount = 0; // Tidak memenuhi minimum attendance
+                }
+
+                // CHECK: Forfeit on alpha (any absent day = 0)
+                if ($component->forfeit_on_alpha && $absentDays > 0) {
+                    $amount = 0;
+                }
+
+                // CHECK: Forfeit on late (any late day = 0)
+                if ($component->forfeit_on_late && $lateDays > 0) {
+                    $amount = 0;
+                }
+
+                // Apply proration based on proration_type (only if not forfeited)
+                if ($amount > 0) {
+                    switch ($component->proration_type) {
+                        case 'daily':
+                            // Prorate per working day
+                            if ($scheduledWorkingDays > 0) {
+                                $dailyRate = $empComponent->amount / $scheduledWorkingDays;
+                                $amount = round($dailyRate * $presentDays, 0);
+                            }
+                            break;
+                        case 'attendance':
+                            // Prorate based on attendance ratio
+                            if ($scheduledWorkingDays > 0) {
+                                $attendanceRatio = $presentDays / $scheduledWorkingDays;
+                                $amount = round($empComponent->amount * $attendanceRatio, 0);
+                            }
+                            break;
+                        case 'none':
+                        default:
+                            // Full amount (no proration) - keep original amount
+                            break;
+                    }
+                }
+
+                $earnings[] = [
+                    'code' => $component->code,
+                    'name' => $component->name,
+                    'category' => $component->category,
+                    'type' => 'earning',
+                    'amount' => $amount,
+                    'is_taxable' => $component->is_taxable,
+                ];
+                $totalEarnings += $amount;
+            }
+        }
+
+        // Add overtime earnings
+        if ($totalOvertimeMinutes > 0) {
+            $basicSalary = collect($earnings)->where('code', 'BASIC_SALARY')->first()['amount'] ?? 0;
+            $hourlyRate = $basicSalary > 0 ? $basicSalary / 173 : 0;
+            $overtimeAmount = round(($totalOvertimeMinutes / 60) * $hourlyRate * 1.5, 0);
+
+            $earnings[] = [
+                'code' => 'OVERTIME',
+                'name' => 'Lembur (' . round($totalOvertimeMinutes / 60, 1) . ' jam)',
+                'category' => 'variable_allowance',
+                'type' => 'earning',
+                'amount' => $overtimeAmount,
+                'is_taxable' => true,
+            ];
+            $totalEarnings += $overtimeAmount;
+        }
+
+        // ========================================
+        // DEDUCTIONS CALCULATION
+        // ========================================
+        $taxableIncome = collect($earnings)->where('is_taxable', true)->sum('amount');
+        $taxStatus = $employee->sensitiveData?->tax_status ?? 'TK/0';
+        $taxAmount = $this->calculateTax($taxableIncome, $taxStatus);
+
+        // Calculate BPJS from base salary
+        $bpjsBase = collect($earnings)
+            ->filter(fn($earning) => $earning['category'] === 'basic_salary')
+            ->sum('amount');
+
+        $bpjsTkEmployee = round($bpjsBase * 0.02, 0);
+        $bpjsKesEmployee = round($bpjsBase * 0.01, 0);
+        $bpjsTkCompany = round($bpjsBase * 0.0374, 0);
+        $bpjsKesCompany = round($bpjsBase * 0.04, 0);
+
+        // Deductions array
+        $deductions = [
+            [
+                'code' => 'TAX_PPH21',
+                'name' => 'PPh 21',
+                'category' => 'statutory',
+                'type' => 'deduction',
+                'amount' => round($taxAmount, 0),
+            ],
+            [
+                'code' => 'BPJS_TK_EMPLOYEE',
+                'name' => 'BPJS Ketenagakerjaan',
+                'category' => 'statutory',
+                'type' => 'deduction',
+                'amount' => $bpjsTkEmployee,
+            ],
+            [
+                'code' => 'BPJS_KES_EMPLOYEE',
+                'name' => 'BPJS Kesehatan',
+                'category' => 'statutory',
+                'type' => 'deduction',
+                'amount' => $bpjsKesEmployee,
+            ],
+        ];
+
+        // Add late deduction
+        if ($totalLateMinutes > 0) {
+            $lateDeduction = round($totalLateMinutes * 1000, 0);
+            $deductions[] = [
+                'code' => 'LATE_DEDUCTION',
+                'name' => 'Potongan Terlambat (' . $totalLateMinutes . ' menit)',
+                'category' => 'other_deduction',
+                'type' => 'deduction',
+                'amount' => $lateDeduction,
+            ];
+        }
+
+        // Add absent deduction
+        if ($absentDays > 0) {
+            $basicSalaryAmount = collect($earnings)->where('code', 'BASIC_SALARY')->first()['amount'] ?? 0;
+            $dailyRate = $scheduledWorkingDays > 0 ? $basicSalaryAmount / $scheduledWorkingDays : 0;
+            $absentDeduction = round($dailyRate * $absentDays, 0);
+
+            $deductions[] = [
+                'code' => 'ABSENT_DEDUCTION',
+                'name' => 'Potongan Alpha (' . $absentDays . ' hari)',
+                'category' => 'other_deduction',
+                'type' => 'deduction',
+                'amount' => $absentDeduction,
+            ];
+        }
+
+        // Add other deductions from employee components
+        foreach ($employee->activePayrollComponents as $component) {
+            if ($component->component->type === 'deduction') {
+                $deductions[] = [
+                    'code' => $component->component->code,
+                    'name' => $component->component->name,
+                    'category' => $component->component->category,
+                    'type' => 'deduction',
+                    'amount' => $component->amount,
+                ];
+            }
+        }
+
+        $totalDeductions = collect($deductions)->sum('amount');
+        $netSalary = $totalEarnings - $totalDeductions;
+
+        // Generate slip number
+        $slipNumber = PayrollSlip::generateSlipNumber($period->period_code, $employee->nik);
+
+        // Create slip with data from LOCKED period summary
+        return PayrollSlip::create([
+            'payroll_period_id' => $period->id,
+            'employee_id' => $employee->id,
+            'slip_number' => $slipNumber,
+            'slip_date' => $period->end_date,
+
+            // Employee snapshot
+            'employee_nik' => $employee->nik,
+            'employee_name' => $employee->full_name,
+            'department' => $currentCareer?->department?->name,
+            'position' => $currentCareer?->position?->name,
+            'level' => $currentCareer?->level?->grade_code,
+
+            // Working days from LOCKED period summary
+            'working_days' => $scheduledWorkingDays,
+            'actual_days' => $presentDays,
+            'absent_days' => $absentDays,
+            'leave_days' => $leaveDays,
+
+            // Components
+            'earnings' => $earnings,
+            'deductions' => $deductions,
+
+            // Totals
+            'gross_salary' => $totalEarnings,
+            'total_deductions' => $totalDeductions,
+            'net_salary' => max(0, $netSalary),
+
+            // Tax
+            'tax_status' => $taxStatus,
+            'taxable_income' => $taxableIncome,
+            'tax_amount' => round($taxAmount, 0),
 
             // BPJS
             'bpjs_tk_company' => $bpjsTkCompany,

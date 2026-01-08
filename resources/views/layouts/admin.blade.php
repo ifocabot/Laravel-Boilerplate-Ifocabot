@@ -515,6 +515,26 @@
                         </svg>
                         Salary Components
                     </a>
+
+                    <div class="border-t border-gray-200 my-2"></div>
+
+                    {{-- Payroll Adjustments --}}
+                    <a href="{{ route('hris.payroll.adjustments.index') }}"
+                        class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors {{ request()->routeIs('hris.payroll.adjustments.*') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Adjustments
+                        @php
+                            $pendingAdjustments = \App\Models\PayrollAdjustment::pending()->count();
+                        @endphp
+                        @if($pendingAdjustments > 0)
+                            <span class="ml-auto px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
+                                {{ $pendingAdjustments }}
+                            </span>
+                        @endif
+                    </a>
                 </div>
             </div>
 
@@ -611,98 +631,99 @@
                 </div>
             </div>
 
-{{-- Master Data (3 level) --}}
-<div x-data="{ open: {{ request()->routeIs('master-data.*') ? 'true' : 'false' }} }">
-    {{-- Level 2 (Master Data) --}}
-    <button @click="open = !open"
-        class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-colors
+            {{-- Master Data (3 level) --}}
+            <div x-data="{ open: {{ request()->routeIs('master-data.*') ? 'true' : 'false' }} }">
+                {{-- Level 2 (Master Data) --}}
+                <button @click="open = !open"
+                    class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-colors
         {{ request()->routeIs('master-data.*') ? 'text-indigo-600 bg-indigo-50' : 'text-gray-600 hover:bg-gray-50 hover:text-indigo-600' }}">
-        <div class="flex items-center gap-3">
-            <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
-            Master Data
-        </div>
-        <svg :class="open ? 'rotate-180' : ''"
-            class="w-4 h-4 flex-shrink-0 transition-transform duration-200" fill="none" viewBox="0 0 24 24"
-            stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-        </svg>
-    </button>
+                    <div class="flex items-center gap-3">
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        Master Data
+                    </div>
+                    <svg :class="open ? 'rotate-180' : ''"
+                        class="w-4 h-4 flex-shrink-0 transition-transform duration-200" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
 
-    {{-- Level 2 content --}}
-    <div x-show="open" x-cloak x-transition class="space-y-1 pl-4 mt-1">
+                {{-- Level 2 content --}}
+                <div x-show="open" x-cloak x-transition class="space-y-1 pl-4 mt-1">
 
-        {{-- Level 3 (General) --}}
-        <div x-data="{ open2: {{ request()->routeIs('master-data.general.*') ? 'true' : 'false' }} }">
-            <button @click="open2 = !open2"
-                class="w-full flex items-center justify-between px-4 py-2 text-sm rounded-lg transition-colors
+                    {{-- Level 3 (General) --}}
+                    <div x-data="{ open2: {{ request()->routeIs('master-data.general.*') ? 'true' : 'false' }} }">
+                        <button @click="open2 = !open2"
+                            class="w-full flex items-center justify-between px-4 py-2 text-sm rounded-lg transition-colors
                 {{ request()->routeIs('master-data.general.*') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
-                <span class="flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M4 4h16v16H4V4z" />
-                    </svg>
-                    General
-                </span>
-                <svg :class="open2 ? 'rotate-180' : ''"
-                    class="w-4 h-4 transition-transform duration-200" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
-            </button>
+                            <span class="flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 4h16v16H4V4z" />
+                                </svg>
+                                General
+                            </span>
+                            <svg :class="open2 ? 'rotate-180' : ''" class="w-4 h-4 transition-transform duration-200"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
 
-            {{-- Level 3 content (links) --}}
-            <div x-show="open2" x-cloak x-transition class="space-y-1 pl-4 mt-1">
-                <a href="{{ route('master-data.general.departments.index') }}"
-                    class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors
+                        {{-- Level 3 content (links) --}}
+                        <div x-show="open2" x-cloak x-transition class="space-y-1 pl-4 mt-1">
+                            <a href="{{ route('master-data.general.departments.index') }}"
+                                class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors
                     {{ request()->routeIs('master-data.general.departments.*') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
-                    Departments
-                </a>
-                <a href="{{ route('master-data.general.locations.index') }}"
-                    class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors
+                                Departments
+                            </a>
+                            <a href="{{ route('master-data.general.locations.index') }}"
+                                class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors
                     {{ request()->routeIs('master-data.general.locations.*') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
-                    Locations
-                </a>
-            </div>
-        </div>
+                                Locations
+                            </a>
+                        </div>
+                    </div>
 
-        {{-- Level 3 (HRIS) --}}
-        <div x-data="{ open2: {{ request()->routeIs('master-data.hris.*') ? 'true' : 'false' }} }" class="mt-1">
-            <button @click="open2 = !open2"
-                class="w-full flex items-center justify-between px-4 py-2 text-sm rounded-lg transition-colors
+                    {{-- Level 3 (HRIS) --}}
+                    <div x-data="{ open2: {{ request()->routeIs('master-data.hris.*') ? 'true' : 'false' }} }"
+                        class="mt-1">
+                        <button @click="open2 = !open2"
+                            class="w-full flex items-center justify-between px-4 py-2 text-sm rounded-lg transition-colors
                 {{ request()->routeIs('master-data.hris.*') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
-                <span class="flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M7 7h10M7 12h10M7 17h10" />
-                    </svg>
-                    HRIS
-                </span>
-                <svg :class="open2 ? 'rotate-180' : ''"
-                    class="w-4 h-4 transition-transform duration-200" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
-            </button>
+                            <span class="flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M7 7h10M7 12h10M7 17h10" />
+                                </svg>
+                                HRIS
+                            </span>
+                            <svg :class="open2 ? 'rotate-180' : ''" class="w-4 h-4 transition-transform duration-200"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
 
-            <div x-show="open2" x-cloak x-transition class="space-y-1 pl-4 mt-1">
-                <a href="{{ route('master-data.hris.levels.index') }}"
-                    class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors
+                        <div x-show="open2" x-cloak x-transition class="space-y-1 pl-4 mt-1">
+                            <a href="{{ route('master-data.hris.levels.index') }}"
+                                class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors
                     {{ request()->routeIs('master-data.hris.levels.*') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
-                    Job Levels
-                </a>
-                <a href="{{ route('master-data.hris.positions.index') }}"
-                    class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors
+                                Job Levels
+                            </a>
+                            <a href="{{ route('master-data.hris.positions.index') }}"
+                                class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors
                     {{ request()->routeIs('master-data.hris.positions.*') ? 'text-indigo-600 bg-indigo-50 font-medium' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50' }}">
-                    Positions
-                </a>
-            </div>
-        </div>
+                                Positions
+                            </a>
+                        </div>
+                    </div>
 
-    </div>
-</div>
+                </div>
+            </div>
 
 
         </nav>

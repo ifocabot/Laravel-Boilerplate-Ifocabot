@@ -17,29 +17,43 @@ class AttendanceSummary extends Model
         'date',
         'shift_id',
         'overtime_request_id',
-        'leave_request_id', // For leave integration
+        'leave_request_id',
+        'payroll_period_id',
+        'schedule_id',
+        'clock_in_at',
+        'clock_out_at',
+        'planned_start_at',
+        'planned_end_at',
         'status',
         'total_work_minutes',
         'late_minutes',
         'early_leave_minutes',
         'overtime_minutes',
+        'detected_overtime_minutes',
         'approved_overtime_minutes',
         'notes',
         'system_notes',
-        'is_locked_for_payroll', // ✅ NEW
-        'locked_at', // ✅ NEW
-        'locked_by', // ✅ NEW
+        'source_flags',
+        'is_locked_for_payroll',
+        'locked_at',
+        'locked_by',
     ];
 
     protected $casts = [
         'date' => 'date',
+        'clock_in_at' => 'datetime',
+        'clock_out_at' => 'datetime',
+        'planned_start_at' => 'datetime',
+        'planned_end_at' => 'datetime',
         'total_work_minutes' => 'integer',
         'late_minutes' => 'integer',
         'early_leave_minutes' => 'integer',
         'overtime_minutes' => 'integer',
+        'detected_overtime_minutes' => 'integer',
         'approved_overtime_minutes' => 'integer',
-        'is_locked_for_payroll' => 'boolean', // ✅ NEW
-        'locked_at' => 'datetime', // ✅ NEW
+        'source_flags' => 'array',
+        'is_locked_for_payroll' => 'boolean',
+        'locked_at' => 'datetime',
     ];
 
     // ✅ NEW Relationship
@@ -179,6 +193,21 @@ class AttendanceSummary extends Model
     public function overtimeRequest(): BelongsTo
     {
         return $this->belongsTo(OvertimeRequest::class);
+    }
+
+    public function leaveRequest(): BelongsTo
+    {
+        return $this->belongsTo(LeaveRequest::class);
+    }
+
+    public function payrollPeriod(): BelongsTo
+    {
+        return $this->belongsTo(PayrollPeriod::class);
+    }
+
+    public function schedule(): BelongsTo
+    {
+        return $this->belongsTo(EmployeeSchedule::class, 'schedule_id');
     }
 
     /**

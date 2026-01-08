@@ -14,10 +14,16 @@ class PayrollPeriod extends Model
         'period_name',
         'year',
         'month',
+        'cutoff_start_day',
+        'cutoff_end_day',
         'start_date',
         'end_date',
         'payment_date',
         'status',
+        'attendance_locked',
+        'attendance_locked_at',
+        'attendance_locked_by',
+        'period_summary_generated_at',
         'approved_at',
         'approved_by',
         'total_gross_salary',
@@ -28,9 +34,14 @@ class PayrollPeriod extends Model
     ];
 
     protected $casts = [
+        'cutoff_start_day' => 'integer',
+        'cutoff_end_day' => 'integer',
         'start_date' => 'date',
         'end_date' => 'date',
         'payment_date' => 'date',
+        'attendance_locked' => 'boolean',
+        'attendance_locked_at' => 'datetime',
+        'period_summary_generated_at' => 'datetime',
         'approved_at' => 'date',
         'total_gross_salary' => 'decimal:2',
         'total_deductions' => 'decimal:2',
@@ -49,6 +60,21 @@ class PayrollPeriod extends Model
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function attendanceLockedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'attendance_locked_by');
+    }
+
+    public function periodSummaries(): HasMany
+    {
+        return $this->hasMany(AttendancePeriodSummary::class);
+    }
+
+    public function adjustments(): HasMany
+    {
+        return $this->hasMany(PayrollAdjustment::class);
     }
 
     /**

@@ -25,6 +25,11 @@ class PayrollComponent extends Model
         'rate_per_hour',
         'percentage_value',
         'calculation_notes',
+        // Behavior flags
+        'proration_type',
+        'forfeit_on_alpha',
+        'forfeit_on_late',
+        'min_attendance_percent',
     ];
 
     protected $casts = [
@@ -33,6 +38,10 @@ class PayrollComponent extends Model
         'show_on_slip' => 'boolean',
         'is_active' => 'boolean',
         'display_order' => 'integer',
+        // Behavior flags
+        'forfeit_on_alpha' => 'boolean',
+        'forfeit_on_late' => 'boolean',
+        'min_attendance_percent' => 'integer',
     ];
 
     /**

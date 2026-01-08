@@ -238,6 +238,16 @@ Route::middleware(['auth'])->prefix('hris/payroll')->name('hris.payroll.')->grou
         Route::get('/{id}/download-pdf', [PayrollSlipController::class, 'downloadPdf'])->name('download-pdf');
         Route::post('/{id}/send-email', [PayrollSlipController::class, 'sendEmail'])->name('send-email');
     });
+
+    // Payroll Adjustments (Post-Lock Changes)
+    Route::prefix('adjustments')->name('adjustments.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\HumanResource\Payroll\PayrollAdjustmentController::class, 'index'])->name('index');
+        Route::get('/create', [\App\Http\Controllers\HumanResource\Payroll\PayrollAdjustmentController::class, 'create'])->name('create');
+        Route::post('/', [\App\Http\Controllers\HumanResource\Payroll\PayrollAdjustmentController::class, 'store'])->name('store');
+        Route::get('/{id}', [\App\Http\Controllers\HumanResource\Payroll\PayrollAdjustmentController::class, 'show'])->name('show');
+        Route::post('/{id}/approve', [\App\Http\Controllers\HumanResource\Payroll\PayrollAdjustmentController::class, 'approve'])->name('approve');
+        Route::post('/{id}/reject', [\App\Http\Controllers\HumanResource\Payroll\PayrollAdjustmentController::class, 'reject'])->name('reject');
+    });
 });
 
 // ============================================

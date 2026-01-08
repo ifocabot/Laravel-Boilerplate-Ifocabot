@@ -230,10 +230,12 @@
                                 @if($component->rate_per_day || $component->rate_per_hour || $component->percentage_value)
                                     <div class="flex items-center gap-4 mt-1 text-xs text-gray-500">
                                         @if($component->rate_per_day)
-                                            <span class="text-green-600">📅 Rp{{ number_format($component->rate_per_day, 0, ',', '.') }}/hari</span>
+                                            <span class="text-green-600">📅
+                                                Rp{{ number_format($component->rate_per_day, 0, ',', '.') }}/hari</span>
                                         @endif
                                         @if($component->rate_per_hour)
-                                            <span class="text-purple-600">⏱️ Rp{{ number_format($component->rate_per_hour, 0, ',', '.') }}/jam</span>
+                                            <span class="text-purple-600">⏱️
+                                                Rp{{ number_format($component->rate_per_hour, 0, ',', '.') }}/jam</span>
                                         @endif
                                         @if($component->percentage_value)
                                             <span class="text-indigo-600">📊 {{ $component->percentage_value }}%</span>
@@ -508,6 +510,69 @@
                                     </div>
                                 </div>
                             </div>
+
+                            {{-- Behavior Options --}}
+                            <div class="border-t border-gray-200 pt-6 mt-6">
+                                <h4 class="text-sm font-bold text-gray-900 mb-4">⚙️ Opsi Perilaku Komponen</h4>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                                    <div>
+                                        <label for="create_proration_type"
+                                            class="block text-sm font-semibold text-gray-700 mb-2">
+                                            Tipe Prorata
+                                        </label>
+                                        <select name="proration_type" id="create_proration_type"
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                                            <option value="none">Tidak ada (Full Amount)</option>
+                                            <option value="daily">Per Hari Kerja</option>
+                                            <option value="attendance">Berdasarkan Rasio Kehadiran</option>
+                                        </select>
+                                        <p class="text-xs text-gray-500 mt-1">Bagaimana komponen ini dihitung berdasarkan
+                                            kehadiran</p>
+                                    </div>
+
+                                    <div>
+                                        <label for="create_min_attendance_percent"
+                                            class="block text-sm font-semibold text-gray-700 mb-2">
+                                            Minimum Kehadiran (%)
+                                        </label>
+                                        <input type="number" name="min_attendance_percent"
+                                            id="create_min_attendance_percent" min="0" max="100" step="1"
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                            placeholder="Kosongkan jika tidak ada minimum">
+                                        <p class="text-xs text-gray-500 mt-1">Komponen hangus jika kehadiran di bawah %</p>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-3">
+                                    <div class="flex items-start gap-3">
+                                        <input type="checkbox" name="forfeit_on_alpha" id="create_forfeit_on_alpha"
+                                            value="1"
+                                            class="w-5 h-5 mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500">
+                                        <div class="flex-1">
+                                            <label for="create_forfeit_on_alpha"
+                                                class="text-sm font-semibold text-gray-900 cursor-pointer">
+                                                🚫 Hangus jika Alpha
+                                            </label>
+                                            <p class="text-xs text-gray-500 mt-0.5">Komponen menjadi Rp 0 jika ada hari
+                                                alpha (tidak masuk tanpa kabar)</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex items-start gap-3">
+                                        <input type="checkbox" name="forfeit_on_late" id="create_forfeit_on_late" value="1"
+                                            class="w-5 h-5 mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500">
+                                        <div class="flex-1">
+                                            <label for="create_forfeit_on_late"
+                                                class="text-sm font-semibold text-gray-900 cursor-pointer">
+                                                ⏰ Hangus jika Terlambat
+                                            </label>
+                                            <p class="text-xs text-gray-500 mt-0.5">Komponen menjadi Rp 0 jika ada hari
+                                                terlambat</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         {{-- Modal Footer --}}
@@ -764,6 +829,65 @@
                                                 Active
                                             </label>
                                             <p class="text-xs text-gray-500 mt-0.5">Komponen ini aktif dan dapat digunakan</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- Behavior Options --}}
+                                <div class="border-t border-gray-200 pt-6 mt-6">
+                                    <h4 class="text-sm font-bold text-gray-900 mb-4">⚙️ Opsi Perilaku Komponen</h4>
+                                    
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                                        <div>
+                                            <label for="edit_proration_type_{{ $component->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                                Tipe Prorata
+                                            </label>
+                                            <select name="proration_type" id="edit_proration_type_{{ $component->id }}"
+                                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                                                <option value="none" {{ ($component->proration_type ?? 'none') === 'none' ? 'selected' : '' }}>Tidak ada (Full Amount)</option>
+                                                <option value="daily" {{ ($component->proration_type ?? '') === 'daily' ? 'selected' : '' }}>Per Hari Kerja</option>
+                                                <option value="attendance" {{ ($component->proration_type ?? '') === 'attendance' ? 'selected' : '' }}>Berdasarkan Rasio Kehadiran</option>
+                                            </select>
+                                            <p class="text-xs text-gray-500 mt-1">Bagaimana komponen ini dihitung berdasarkan kehadiran</p>
+                                        </div>
+
+                                        <div>
+                                            <label for="edit_min_attendance_percent_{{ $component->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                                Minimum Kehadiran (%)
+                                            </label>
+                                            <input type="number" name="min_attendance_percent" id="edit_min_attendance_percent_{{ $component->id }}" 
+                                                min="0" max="100" step="1" value="{{ $component->min_attendance_percent }}"
+                                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                                placeholder="Kosongkan jika tidak ada minimum">
+                                            <p class="text-xs text-gray-500 mt-1">Komponen hangus jika kehadiran di bawah %</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="space-y-3">
+                                        <div class="flex items-start gap-3">
+                                            <input type="checkbox" name="forfeit_on_alpha" id="edit_forfeit_on_alpha_{{ $component->id }}" value="1"
+                                                {{ $component->forfeit_on_alpha ? 'checked' : '' }}
+                                                class="w-5 h-5 mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500">
+                                            <div class="flex-1">
+                                                <label for="edit_forfeit_on_alpha_{{ $component->id }}"
+                                                    class="text-sm font-semibold text-gray-900 cursor-pointer">
+                                                    🚫 Hangus jika Alpha
+                                                </label>
+                                                <p class="text-xs text-gray-500 mt-0.5">Komponen menjadi Rp 0 jika ada hari alpha (tidak masuk tanpa kabar)</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="flex items-start gap-3">
+                                            <input type="checkbox" name="forfeit_on_late" id="edit_forfeit_on_late_{{ $component->id }}" value="1"
+                                                {{ $component->forfeit_on_late ? 'checked' : '' }}
+                                                class="w-5 h-5 mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500">
+                                            <div class="flex-1">
+                                                <label for="edit_forfeit_on_late_{{ $component->id }}"
+                                                    class="text-sm font-semibold text-gray-900 cursor-pointer">
+                                                    ⏰ Hangus jika Terlambat
+                                                </label>
+                                                <p class="text-xs text-gray-500 mt-0.5">Komponen menjadi Rp 0 jika ada hari terlambat</p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
