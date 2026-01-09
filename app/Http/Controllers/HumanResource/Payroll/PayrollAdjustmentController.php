@@ -128,7 +128,27 @@ class PayrollAdjustmentController extends Controller
     {
         $validated = $request->validate([
             'employee_id' => 'required|exists:employees,id',
-            'payroll_period_id' => 'required|exists:payroll_periods,id',
+            'payroll_period_id' => [
+                'required',
+                'exists:payroll_periods,id',
+                // Custom validation: Check period status
+                function ($attribute, $value, $fail) use ($request) {
+                    $period = PayrollPeriod::find($value);
+                    if (!$period)
+                        return;
+
+                    // Block if period is already finalized
+                    if (in_array($period->status, ['approved', 'paid', 'closed'])) {
+                        $fail('Tidak dapat membuat adjustment pada periode yang sudah disetujui atau dibayar.');
+                    }
+
+                    // Block attendance-type adjustments if attendance is locked
+                    $attendanceTypes = ['attendance_correction', 'overtime', 'late_correction'];
+                    if ($period->attendance_locked && in_array($request->input('type'), $attendanceTypes)) {
+                        $fail('Data kehadiran periode ini sudah dikunci, tidak bisa melakukan koreksi kehadiran/lembur.');
+                    }
+                },
+            ],
             'source_date' => 'nullable|date',
             'type' => 'required|in:overtime,leave_correction,attendance_correction,late_correction,schedule_change,manual,other',
             'amount_minutes' => 'nullable|integer',

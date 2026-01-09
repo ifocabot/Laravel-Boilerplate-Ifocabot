@@ -26,6 +26,10 @@ class PayrollPeriod extends Model
         'period_summary_generated_at',
         'approved_at',
         'approved_by',
+        'paid_at',
+        'paid_by',
+        'closed_at',
+        'closed_by',
         'total_gross_salary',
         'total_deductions',
         'total_net_salary',
@@ -42,7 +46,9 @@ class PayrollPeriod extends Model
         'attendance_locked' => 'boolean',
         'attendance_locked_at' => 'datetime',
         'period_summary_generated_at' => 'datetime',
-        'approved_at' => 'date',
+        'approved_at' => 'datetime',
+        'paid_at' => 'datetime',
+        'closed_at' => 'datetime',
         'total_gross_salary' => 'decimal:2',
         'total_deductions' => 'decimal:2',
         'total_net_salary' => 'decimal:2',
@@ -75,6 +81,16 @@ class PayrollPeriod extends Model
     public function adjustments(): HasMany
     {
         return $this->hasMany(PayrollAdjustment::class);
+    }
+
+    public function paidBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'paid_by');
+    }
+
+    public function closedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'closed_by');
     }
 
     /**
@@ -146,9 +162,11 @@ class PayrollPeriod extends Model
         $this->save();
     }
 
-    public function markAsPaid(): void
+    public function markAsPaid(User $user): void
     {
         $this->status = 'paid';
+        $this->paid_at = now();
+        $this->paid_by = $user->id;
         $this->save();
 
         // Update all slips
@@ -156,5 +174,29 @@ class PayrollPeriod extends Model
             'payment_status' => 'paid',
             'payment_date' => now(),
         ]);
+    }
+
+    public function close(User $user): void
+    {
+        $this->status = 'closed';
+        $this->closed_at = now();
+        $this->closed_by = $user->id;
+        $this->save();
+    }
+
+    /**
+     * Check if period can be modified
+     */
+    public function isEditable(): bool
+    {
+        return in_array($this->status, ['draft', 'processing']);
+    }
+
+    /**
+     * Check if period is finalized
+     */
+    public function isFinalized(): bool
+    {
+        return in_array($this->status, ['approved', 'paid', 'closed']);
     }
 }

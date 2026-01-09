@@ -52,8 +52,15 @@ class PayrollComponentController extends Controller
                 'description' => 'nullable|string',
                 'type' => 'required|in:earning,deduction',
                 'category' => 'required|in:basic_salary,fixed_allowance,variable_allowance,statutory,other_deduction',
-                'calculation_type' => 'required|in:fixed,percentage,formula',
+                'calculation_type' => 'required|in:fixed,daily_rate,hourly_rate,percentage,formula',
                 'calculation_formula' => 'nullable|string',
+                'rate_per_day' => 'nullable|numeric|min:0',
+                'rate_per_hour' => 'nullable|numeric|min:0',
+                'percentage_value' => 'nullable|numeric|min:0|max:100',
+                'proration_type' => 'nullable|in:none,daily,attendance',
+                'forfeit_on_alpha' => 'nullable|boolean',
+                'forfeit_on_late' => 'nullable|boolean',
+                'min_attendance_percent' => 'nullable|integer|min:0|max:100',
                 'is_taxable' => 'nullable|boolean',
                 'is_bpjs_base' => 'nullable|boolean',
                 'display_order' => 'nullable|integer|min:0',
@@ -63,9 +70,22 @@ class PayrollComponentController extends Controller
             $validated['is_taxable'] = $request->has('is_taxable');
             $validated['is_bpjs_base'] = $request->has('is_bpjs_base');
             $validated['show_on_slip'] = $request->has('show_on_slip') ? true : false;
+            $validated['forfeit_on_alpha'] = $request->has('forfeit_on_alpha');
+            $validated['forfeit_on_late'] = $request->has('forfeit_on_late');
             $validated['is_active'] = true;
 
             $component = PayrollComponent::create($validated);
+
+            // Guardrail validation (Phase 3)
+            $validator = new \App\Services\Payroll\ComponentValidator();
+            if (!$validator->validate($component)) {
+                // Log warnings but don't block - just inform user
+                Log::warning('Component config warnings', [
+                    'component_id' => $component->id,
+                    'warnings' => $validator->getWarnings(),
+                    'errors' => $validator->getErrors(),
+                ]);
+            }
 
             DB::commit();
 
@@ -108,8 +128,15 @@ class PayrollComponentController extends Controller
                 'description' => 'nullable|string',
                 'type' => 'required|in:earning,deduction',
                 'category' => 'required|in:basic_salary,fixed_allowance,variable_allowance,statutory,other_deduction',
-                'calculation_type' => 'required|in:fixed,percentage,formula',
+                'calculation_type' => 'required|in:fixed,daily_rate,hourly_rate,percentage,formula',
                 'calculation_formula' => 'nullable|string',
+                'rate_per_day' => 'nullable|numeric|min:0',
+                'rate_per_hour' => 'nullable|numeric|min:0',
+                'percentage_value' => 'nullable|numeric|min:0|max:100',
+                'proration_type' => 'nullable|in:none,daily,attendance',
+                'forfeit_on_alpha' => 'nullable|boolean',
+                'forfeit_on_late' => 'nullable|boolean',
+                'min_attendance_percent' => 'nullable|integer|min:0|max:100',
                 'is_taxable' => 'nullable|boolean',
                 'is_bpjs_base' => 'nullable|boolean',
                 'display_order' => 'nullable|integer|min:0',
@@ -120,9 +147,21 @@ class PayrollComponentController extends Controller
             $validated['is_taxable'] = $request->has('is_taxable');
             $validated['is_bpjs_base'] = $request->has('is_bpjs_base');
             $validated['show_on_slip'] = $request->has('show_on_slip');
+            $validated['forfeit_on_alpha'] = $request->has('forfeit_on_alpha');
+            $validated['forfeit_on_late'] = $request->has('forfeit_on_late');
             $validated['is_active'] = $request->has('is_active');
 
             $component->update($validated);
+
+            // Guardrail validation (Phase 3)
+            $validator = new \App\Services\Payroll\ComponentValidator();
+            if (!$validator->validate($component)) {
+                Log::warning('Component config warnings', [
+                    'component_id' => $component->id,
+                    'warnings' => $validator->getWarnings(),
+                    'errors' => $validator->getErrors(),
+                ]);
+            }
 
             DB::commit();
 

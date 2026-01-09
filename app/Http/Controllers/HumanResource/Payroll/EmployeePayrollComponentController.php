@@ -82,6 +82,8 @@ class EmployeePayrollComponentController extends Controller
                 'effective_from' => 'required|date',
                 'effective_to' => 'nullable|date|after_or_equal:effective_from',
                 'is_recurring' => 'nullable|boolean',
+                'is_override' => 'nullable|boolean',
+                'override_reason' => 'nullable|string|max:255',
                 'notes' => 'nullable|string',
             ], [
                 'component_id.required' => 'Komponen wajib dipilih.',
@@ -90,10 +92,17 @@ class EmployeePayrollComponentController extends Controller
                 'effective_to.after_or_equal' => 'Tanggal berakhir harus setelah atau sama dengan tanggal efektif.',
             ]);
 
+            // Get component to capture default amount
+            $component = PayrollComponent::findOrFail($validated['component_id']);
+
             $validated['employee_id'] = $employeeId;
             $validated['is_active'] = true;
             $validated['is_recurring'] = $request->has('is_recurring');
+            $validated['is_override'] = $request->has('is_override');
             $validated['unit'] = $validated['unit'] ?? 'IDR';
+
+            // Store original amount for audit trail
+            $validated['original_amount'] = $component->default_amount ?? $component->rate_per_day;
 
             $employeeComponent = EmployeePayrollComponent::create($validated);
 
@@ -103,6 +112,7 @@ class EmployeePayrollComponentController extends Controller
                 'employee_component_id' => $employeeComponent->id,
                 'employee_id' => $employeeId,
                 'component_id' => $validated['component_id'],
+                'is_override' => $validated['is_override'],
             ]);
 
             return redirect()
@@ -151,6 +161,8 @@ class EmployeePayrollComponentController extends Controller
                 'effective_to' => 'nullable|date|after_or_equal:effective_from',
                 'is_active' => 'nullable|boolean',
                 'is_recurring' => 'nullable|boolean',
+                'is_override' => 'nullable|boolean',
+                'override_reason' => 'nullable|string|max:255',
                 'notes' => 'nullable|string',
             ], [
                 'component_id.required' => 'Komponen wajib dipilih.',
@@ -160,6 +172,7 @@ class EmployeePayrollComponentController extends Controller
 
             $validated['is_active'] = $request->has('is_active');
             $validated['is_recurring'] = $request->has('is_recurring');
+            $validated['is_override'] = $request->has('is_override');
             $validated['unit'] = $validated['unit'] ?? 'IDR';
 
             $employeeComponent->update($validated);
@@ -169,6 +182,7 @@ class EmployeePayrollComponentController extends Controller
             Log::info('Employee payroll component updated', [
                 'employee_component_id' => $employeeComponent->id,
                 'employee_id' => $employeeId,
+                'is_override' => $validated['is_override'],
             ]);
 
             return redirect()

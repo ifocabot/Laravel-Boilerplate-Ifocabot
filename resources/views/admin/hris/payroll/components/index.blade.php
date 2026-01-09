@@ -399,6 +399,8 @@
                                         class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
                                         <option value="">Pilih Tipe</option>
                                         <option value="fixed">Fixed Amount</option>
+                                        <option value="daily_rate">Daily Rate (per hari hadir)</option>
+                                        <option value="hourly_rate">Hourly Rate (per jam)</option>
                                         <option value="percentage">Percentage</option>
                                         <option value="formula">Formula</option>
                                     </select>
@@ -703,6 +705,8 @@
                                         <select name="calculation_type" id="edit_calculation_type_{{ $component->id }}" required
                                             class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
                                             <option value="fixed" {{ $component->calculation_type === 'fixed' ? 'selected' : '' }}>Fixed Amount</option>
+                                            <option value="daily_rate" {{ $component->calculation_type === 'daily_rate' ? 'selected' : '' }}>Daily Rate (per hari hadir)</option>
+                                            <option value="hourly_rate" {{ $component->calculation_type === 'hourly_rate' ? 'selected' : '' }}>Hourly Rate (per jam)</option>
                                             <option value="percentage" {{ $component->calculation_type === 'percentage' ? 'selected' : '' }}>Percentage</option>
                                             <option value="formula" {{ $component->calculation_type === 'formula' ? 'selected' : '' }}>Formula</option>
                                         </select>

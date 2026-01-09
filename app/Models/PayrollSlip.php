@@ -59,6 +59,11 @@ class PayrollSlip extends Model
         'bank_account_holder',
 
         'notes',
+
+        // Calculation Snapshot (Phase 1: Freeze & Audit)
+        'calculation_snapshot',
+        'generated_by',
+        'generated_at',
     ];
 
     protected $casts = [
@@ -79,6 +84,8 @@ class PayrollSlip extends Model
         'actual_days' => 'integer',
         'absent_days' => 'integer',
         'leave_days' => 'integer',
+        'calculation_snapshot' => 'array',
+        'generated_at' => 'datetime',
     ];
 
     /**
@@ -92,6 +99,16 @@ class PayrollSlip extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function generatedBy(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'generated_by');
+    }
+
+    public function items(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(PayrollSlipItem::class);
     }
 
     /**

@@ -120,6 +120,14 @@
                                     </span>
                                 </p>
                             </div>
+                            @if($slip->generated_by)
+                            <div class="flex items-start mt-3 pt-3 border-t border-gray-100">
+                                <p class="text-sm text-gray-500 w-32">Di-generate oleh</p>
+                                <p class="text-sm font-semibold text-gray-900 flex-1">: {{ $slip->generatedBy?->name ?? 'System' }}
+                                    <span class="text-xs text-gray-500 ml-1">({{ $slip->generated_at?->format('d M Y H:i') }})</span>
+                                </p>
+                            </div>
+                            @endif
                         </div>
                     </div>
                 </div>

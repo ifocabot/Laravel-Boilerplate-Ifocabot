@@ -18,15 +18,55 @@ class EmployeePayrollComponent extends Model
         'is_active',
         'is_recurring',
         'notes',
+        // ERP: Override tracking
+        'is_override',
+        'original_amount',
+        'override_reason',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'original_amount' => 'decimal:2',
         'effective_from' => 'date',
         'effective_to' => 'date',
         'is_active' => 'boolean',
         'is_recurring' => 'boolean',
+        'is_override' => 'boolean',
     ];
+
+    /**
+     * Get effective amount using ERP hierarchy:
+     * 1. If is_override=true → use this.amount
+     * 2. Otherwise → use component.default_amount or component.rate_per_day
+     */
+    public function getEffectiveAmount(): float
+    {
+        if ($this->is_override) {
+            return (float) $this->amount;
+        }
+
+        $component = $this->component;
+
+        // For daily_rate, use rate_per_day from component
+        if ($component->calculation_type === 'daily_rate' && $component->rate_per_day > 0) {
+            return (float) $component->rate_per_day;
+        }
+
+        // For fixed, use default_amount from component, fallback to this.amount
+        return (float) ($component->default_amount ?? $this->amount);
+    }
+
+    /**
+     * Get effective rate per day
+     */
+    public function getEffectiveRatePerDay(): float
+    {
+        if ($this->is_override && $this->amount > 0) {
+            return (float) $this->amount;
+        }
+
+        return (float) ($this->component->rate_per_day ?? $this->amount);
+    }
 
     /**
      * Boot method

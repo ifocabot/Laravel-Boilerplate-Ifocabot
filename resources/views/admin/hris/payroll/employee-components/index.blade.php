@@ -81,8 +81,9 @@
             <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-500">Total Earnings</p>
+                        <p class="text-sm font-medium text-gray-500">Fixed Earnings</p>
                         <h3 class="text-xl font-bold text-gray-900 mt-2">Rp {{ number_format($totalEarnings, 0, ',', '.') }}</h3>
+                        <p class="text-xs text-gray-400 mt-1">*Belum termasuk rate/hari</p>
                     </div>
                     <div class="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
                         <svg class="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -95,8 +96,9 @@
             <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-500">Total Deductions</p>
+                        <p class="text-sm font-medium text-gray-500">Fixed Deductions</p>
                         <h3 class="text-xl font-bold text-gray-900 mt-2">Rp {{ number_format($totalDeductions, 0, ',', '.') }}</h3>
+                        <p class="text-xs text-gray-400 mt-1">*BPJS dihitung saat payroll</p>
                     </div>
                     <div class="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center">
                         <svg class="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -174,8 +176,15 @@
                                         </div>
                                     </td>
                                     <td class="px-6 py-4">
-                                        <p class="text-sm font-bold text-gray-900">{{ $empComponent->formatted_amount }}</p>
+                                        <p class="text-sm font-bold text-gray-900">
+                                            {{ $empComponent->formatted_amount }}@if($empComponent->component->calculation_type === 'daily_rate')<span class="text-xs font-normal text-gray-500">/hari</span>@elseif($empComponent->component->calculation_type === 'hourly_rate')<span class="text-xs font-normal text-gray-500">/jam</span>@elseif($empComponent->component->calculation_type === 'percentage')<span class="text-xs font-normal text-gray-500">%</span>@endif
+                                        </p>
                                         <p class="text-xs text-gray-500">{{ $empComponent->unit }}</p>
+                                        @if($empComponent->is_override)
+                                            <span class="inline-flex items-center px-2 py-0.5 mt-1 rounded text-xs font-medium bg-orange-100 text-orange-700">
+                                                ⚡ Override
+                                            </span>
+                                        @endif
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="text-sm">
@@ -304,6 +313,7 @@
                         {{-- Modal Body --}}
                         <div class="px-6 py-6 space-y-6" x-data="{ 
                             selectedComponent: null,
+                            isOverride: false,
                             components: {
                                 @foreach($earningComponents->merge($deductionComponents) as $comp)
                                 {{ $comp->id }}: {
@@ -311,6 +321,7 @@
                                     percentageValue: {{ $comp->percentage_value ?? 'null' }},
                                     ratePerDay: {{ $comp->rate_per_day ?? 'null' }},
                                     ratePerHour: {{ $comp->rate_per_hour ?? 'null' }},
+                                    defaultAmount: {{ $comp->default_amount ?? 'null' }},
                                     notes: '{{ addslashes($comp->calculation_notes ?? '') }}'
                                 },
                                 @endforeach
@@ -319,7 +330,7 @@
                                 this.selectedComponent = this.components[id] || null;
                             },
                             needsAmount() {
-                                return !this.selectedComponent || this.selectedComponent.calculationType === 'fixed';
+                                return !this.selectedComponent || this.selectedComponent.calculationType === 'fixed' || this.isOverride;
                             }
                         }">
                             {{-- Component Selection --}}
@@ -436,7 +447,7 @@
                                     <div class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-500 text-sm">
                                         Dihitung otomatis saat payroll
                                     </div>
-                                    <input type="hidden" name="amount" value="0">
+                                    <input type="hidden" name="amount" value="0" :disabled="needsAmount()">
                                 </div>
 
                                 {{-- Unit --}}
@@ -481,6 +492,37 @@
                                     <p class="text-xs text-gray-500 mt-0.5">
                                         Komponen ini akan otomatis masuk ke payroll setiap bulan
                                     </p>
+                                </div>
+                            </div>
+
+                            {{-- Is Override (ERP) --}}
+                            <div class="border border-orange-200 rounded-xl p-4 bg-orange-50/50">
+                                <div class="flex items-start gap-3">
+                                    <input type="checkbox" name="is_override" id="is_override" value="1"
+                                        x-model="isOverride"
+                                        class="w-5 h-5 mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500">
+                                    <div class="flex-1">
+                                        <label for="is_override" class="text-sm font-semibold text-gray-900 cursor-pointer">
+                                            ⚡ Override Company Default
+                                        </label>
+                                        <p class="text-xs text-gray-500 mt-0.5">
+                                            Centang untuk mengisi jumlah custom (berbeda dari default perusahaan)
+                                        </p>
+                                        <template x-if="selectedComponent && selectedComponent.defaultAmount">
+                                            <p class="text-xs text-indigo-600 mt-1">
+                                                Default: Rp <span x-text="selectedComponent.defaultAmount?.toLocaleString('id')"></span>
+                                            </p>
+                                        </template>
+                                    </div>
+                                </div>
+                                
+                                <div x-show="isOverride" x-transition class="mt-4 border-t border-orange-200 pt-4">
+                                    <label for="override_reason" class="block text-sm font-semibold text-gray-700 mb-2">
+                                        Alasan Override
+                                    </label>
+                                    <input type="text" name="override_reason" id="override_reason"
+                                        class="w-full px-4 py-3 border border-orange-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                        placeholder="Contoh: Level Manager mendapat rate lebih tinggi">
                                 </div>
                             </div>
 
@@ -569,14 +611,30 @@
                             </div>
 
                             {{-- Modal Body --}}
-                            <div class="px-6 py-6 space-y-6">
+                            <div class="px-6 py-6 space-y-6" x-data="{
+                                isOverride: {{ $empComponent->is_override ? 'true' : 'false' }},
+                                isFixed: {{ $empComponent->component->calculation_type === 'fixed' ? 'true' : 'false' }},
+                                needsAmount() {
+                                    return this.isFixed || this.isOverride;
+                                }
+                            }">
                                 <input type="hidden" name="component_id" value="{{ $empComponent->component_id }}">
 
                                 {{-- Component Info --}}
+                                <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
+                                    <div class="w-12 h-12 {{ $empComponent->component->type === 'earning' ? 'bg-green-100' : 'bg-red-100' }} rounded-xl flex items-center justify-center">
+                                        <span class="text-xl">{{ $empComponent->component->type === 'earning' ? '💰' : '📉' }}</span>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-sm font-bold text-gray-900">{{ $empComponent->component->name }}</h4>
+                                        <p class="text-xs text-gray-500">{{ $empComponent->component->code }} • {{ ucfirst($empComponent->component->calculation_type) }}</p>
+                                    </div>
+                                </div>
+
                                 @if($empComponent->component->calculation_type !== 'fixed')
-                                    <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                                    <div class="p-4 bg-blue-50 border border-blue-100 rounded-xl" x-show="!isOverride">
                                         <div class="flex gap-3">
-                                            <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <svg class="w-5 h-5 text-blue-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                                                     d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                             </svg>
@@ -589,24 +647,25 @@
                                 @endif
 
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {{-- Amount (show for fixed, optional for others) --}}
-                                    <div>
+                                    {{-- Amount (show when fixed OR override) --}}
+                                    <div x-show="needsAmount()">
                                         <label for="edit_amount_{{ $empComponent->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
-                                            Jumlah 
-                                            @if($empComponent->component->calculation_type === 'fixed')
-                                                <span class="text-red-500">*</span>
-                                            @endif
+                                            Jumlah <span class="text-red-500">*</span>
                                         </label>
-                                        @if($empComponent->component->calculation_type === 'fixed')
-                                            <input type="number" name="amount" id="edit_amount_{{ $empComponent->id }}" 
-                                                required step="0.01" min="0" value="{{ $empComponent->amount }}"
-                                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-                                        @else
-                                            <div class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-500 text-sm">
-                                                Dihitung otomatis saat payroll
-                                            </div>
-                                            <input type="hidden" name="amount" value="{{ $empComponent->amount }}">
-                                        @endif
+                                        <input type="number" name="amount" id="edit_amount_{{ $empComponent->id }}" 
+                                            :required="needsAmount()" step="0.01" min="0" value="{{ $empComponent->amount }}"
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                                    </div>
+
+                                    {{-- Auto-calculated notice (show when NOT fixed AND NOT override) --}}
+                                    <div x-show="!needsAmount()">
+                                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                            Jumlah
+                                        </label>
+                                        <div class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-500 text-sm">
+                                            Dihitung otomatis saat payroll
+                                        </div>
+                                        <input type="hidden" name="amount" value="{{ $empComponent->amount }}" :disabled="needsAmount()">
                                     </div>
 
                                     {{-- Unit --}}
@@ -668,6 +727,43 @@
                                         <p class="text-xs text-gray-500 mt-0.5">
                                             Komponen ini akan otomatis masuk ke payroll setiap bulan
                                         </p>
+                                    </div>
+                                </div>
+
+                                {{-- Is Override (ERP) - uses parent x-data --}}
+                                <div class="border border-orange-200 rounded-xl p-4 bg-orange-50/50">
+                                    <div class="flex items-start gap-3">
+                                        <input type="checkbox" name="is_override" id="edit_is_override_{{ $empComponent->id }}" value="1"
+                                            x-model="isOverride"
+                                            {{ $empComponent->is_override ? 'checked' : '' }}
+                                            class="w-5 h-5 mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500">
+                                        <div class="flex-1">
+                                            <label for="edit_is_override_{{ $empComponent->id }}" class="text-sm font-semibold text-gray-900 cursor-pointer">
+                                                ⚡ Override Company Default
+                                            </label>
+                                            <p class="text-xs text-gray-500 mt-0.5">
+                                                Centang jika amount karyawan ini berbeda dari default perusahaan
+                                            </p>
+                                            @if($empComponent->component->default_amount > 0)
+                                                <p class="text-xs text-indigo-600 mt-1">
+                                                    Default perusahaan: Rp {{ number_format($empComponent->component->default_amount, 0, ',', '.') }}
+                                                </p>
+                                            @elseif($empComponent->component->rate_per_day > 0)
+                                                <p class="text-xs text-indigo-600 mt-1">
+                                                    Rate/hari default: Rp {{ number_format($empComponent->component->rate_per_day, 0, ',', '.') }}
+                                                </p>
+                                            @endif
+                                        </div>
+                                    </div>
+                                    
+                                    <div x-show="isOverride" x-transition class="mt-4 border-t border-orange-200 pt-4">
+                                        <label for="edit_override_reason_{{ $empComponent->id }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                            Alasan Override
+                                        </label>
+                                        <input type="text" name="override_reason" id="edit_override_reason_{{ $empComponent->id }}"
+                                            value="{{ $empComponent->override_reason }}"
+                                            class="w-full px-4 py-3 border border-orange-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                            placeholder="Contoh: Level Manager mendapat rate lebih tinggi">
                                     </div>
                                 </div>
 

@@ -24,6 +24,7 @@ class PayrollComponent extends Model
         'rate_per_day',
         'rate_per_hour',
         'percentage_value',
+        'default_amount', // ERP: Company policy default
         'calculation_notes',
         // Behavior flags
         'proration_type',
@@ -38,6 +39,10 @@ class PayrollComponent extends Model
         'show_on_slip' => 'boolean',
         'is_active' => 'boolean',
         'display_order' => 'integer',
+        'default_amount' => 'decimal:2',
+        'rate_per_day' => 'decimal:2',
+        'rate_per_hour' => 'decimal:2',
+        'percentage_value' => 'decimal:2',
         // Behavior flags
         'forfeit_on_alpha' => 'boolean',
         'forfeit_on_late' => 'boolean',

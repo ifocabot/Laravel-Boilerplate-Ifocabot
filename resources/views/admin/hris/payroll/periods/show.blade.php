@@ -290,10 +290,10 @@
                                     <td class="px-6 py-4">
                                         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
                                             :class="{
-                                                                        'bg-yellow-100 text-yellow-700': slip.payment_status === 'pending',
-                                                                        'bg-green-100 text-green-700': slip.payment_status === 'paid',
-                                                                        'bg-red-100 text-red-700': slip.payment_status === 'failed'
-                                                                    }" x-text="slip.payment_status_label">
+                                                                                'bg-yellow-100 text-yellow-700': slip.payment_status === 'pending',
+                                                                                'bg-green-100 text-green-700': slip.payment_status === 'paid',
+                                                                                'bg-red-100 text-red-700': slip.payment_status === 'failed'
+                                                                            }" x-text="slip.payment_status_label">
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 text-right">
@@ -327,21 +327,74 @@
             @endif
         </div>
 
-        {{-- Period Info & Notes --}}
-        @if($period->notes || $period->approved_by)
+        {{-- Period Info & Audit Trail --}}
+        @if($period->notes || $period->approved_by || $period->paid_by || $period->attendance_locked)
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                <h3 class="text-lg font-bold text-gray-900 mb-4">Informasi Tambahan</h3>
+                <h3 class="text-lg font-bold text-gray-900 mb-4">Informasi & Audit Trail</h3>
 
-                @if($period->approved_by)
-                    <div class="mb-4">
-                        <p class="text-sm text-gray-500 mb-1">Di-approve oleh</p>
-                        <p class="text-sm font-semibold text-gray-900">{{ $period->approvedBy->name }}</p>
-                        <p class="text-xs text-gray-500">{{ $period->approved_at?->format('d F Y H:i') }}</p>
-                    </div>
-                @endif
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {{-- Attendance Lock Info --}}
+                    @if($period->attendance_locked)
+                        <div class="p-4 bg-amber-50 rounded-xl border border-amber-100">
+                            <div class="flex items-center gap-2 mb-2">
+                                <svg class="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
+                                <p class="text-sm font-semibold text-amber-900">Attendance Locked</p>
+                            </div>
+                            <p class="text-sm text-amber-700">{{ $period->attendanceLockedByUser?->name ?? 'System' }}</p>
+                            <p class="text-xs text-amber-600">{{ $period->attendance_locked_at?->format('d M Y H:i') }}</p>
+                        </div>
+                    @endif
+
+                    {{-- Approved Info --}}
+                    @if($period->approved_by)
+                        <div class="p-4 bg-green-50 rounded-xl border border-green-100">
+                            <div class="flex items-center gap-2 mb-2">
+                                <svg class="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <p class="text-sm font-semibold text-green-900">Approved</p>
+                            </div>
+                            <p class="text-sm text-green-700">{{ $period->approvedBy?->name }}</p>
+                            <p class="text-xs text-green-600">{{ $period->approved_at?->format('d M Y H:i') }}</p>
+                        </div>
+                    @endif
+
+                    {{-- Paid Info --}}
+                    @if($period->paid_by)
+                        <div class="p-4 bg-purple-50 rounded-xl border border-purple-100">
+                            <div class="flex items-center gap-2 mb-2">
+                                <svg class="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                                <p class="text-sm font-semibold text-purple-900">Paid</p>
+                            </div>
+                            <p class="text-sm text-purple-700">{{ $period->paidBy?->name }}</p>
+                            <p class="text-xs text-purple-600">{{ $period->paid_at?->format('d M Y H:i') }}</p>
+                        </div>
+                    @endif
+
+                    {{-- Closed Info --}}
+                    @if($period->closed_by)
+                        <div class="p-4 bg-gray-100 rounded-xl border border-gray-200">
+                            <div class="flex items-center gap-2 mb-2">
+                                <svg class="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                </svg>
+                                <p class="text-sm font-semibold text-gray-900">Closed</p>
+                            </div>
+                            <p class="text-sm text-gray-700">{{ $period->closedBy?->name }}</p>
+                            <p class="text-xs text-gray-500">{{ $period->closed_at?->format('d M Y H:i') }}</p>
+                        </div>
+                    @endif
+                </div>
 
                 @if($period->notes)
-                    <div>
+                    <div class="mt-4 pt-4 border-t border-gray-100">
                         <p class="text-sm text-gray-500 mb-1">Catatan</p>
                         <p class="text-sm text-gray-900">{{ $period->notes }}</p>
                     </div>
