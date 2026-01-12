@@ -28,6 +28,8 @@ class PayrollAdjustment extends Model
         'approved_by',
         'approved_at',
         'rejection_reason',
+        'applied_at',
+        'payroll_slip_id',
     ];
 
     protected $casts = [
@@ -36,6 +38,7 @@ class PayrollAdjustment extends Model
         'amount_days' => 'decimal:2',
         'amount_money' => 'decimal:2',
         'approved_at' => 'datetime',
+        'applied_at' => 'datetime',
     ];
 
     /**
@@ -55,6 +58,7 @@ class PayrollAdjustment extends Model
     public const STATUS_PENDING = 'pending';
     public const STATUS_APPROVED = 'approved';
     public const STATUS_REJECTED = 'rejected';
+    public const STATUS_APPLIED = 'applied'; // Applied to payroll slip
 
     /**
      * Relationships
@@ -82,6 +86,11 @@ class PayrollAdjustment extends Model
     public function approvedByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function payrollSlip(): BelongsTo
+    {
+        return $this->belongsTo(PayrollSlip::class);
     }
 
     /**
@@ -121,6 +130,7 @@ class PayrollAdjustment extends Model
                 self::STATUS_PENDING => 'Menunggu',
                 self::STATUS_APPROVED => 'Disetujui',
                 self::STATUS_REJECTED => 'Ditolak',
+                self::STATUS_APPLIED => 'Diterapkan',
                 default => $this->status,
             }
         );
@@ -133,6 +143,7 @@ class PayrollAdjustment extends Model
                 self::STATUS_PENDING => 'bg-yellow-100 text-yellow-700',
                 self::STATUS_APPROVED => 'bg-green-100 text-green-700',
                 self::STATUS_REJECTED => 'bg-red-100 text-red-700',
+                self::STATUS_APPLIED => 'bg-blue-100 text-blue-700',
                 default => 'bg-gray-100 text-gray-700',
             }
         );
@@ -198,6 +209,25 @@ class PayrollAdjustment extends Model
             'type' => $this->type,
             'rejected_by' => $userId,
             'reason' => $reason,
+        ]);
+    }
+
+    /**
+     * Mark adjustment as applied to a payroll slip
+     */
+    public function markApplied(PayrollSlip $slip): void
+    {
+        $this->update([
+            'status' => self::STATUS_APPLIED,
+            'applied_at' => now(),
+            'payroll_slip_id' => $slip->id,
+        ]);
+
+        \Log::info('Payroll adjustment applied', [
+            'adjustment_id' => $this->id,
+            'employee_id' => $this->employee_id,
+            'type' => $this->type,
+            'slip_id' => $slip->id,
         ]);
     }
 

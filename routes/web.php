@@ -318,6 +318,15 @@ Route::middleware(['auth'])->prefix('hris/attendance')->name('hris.attendance.')
         Route::delete('/{adjustment}', [\App\Http\Controllers\HumanResource\Attendance\AttendanceAdjustmentController::class, 'destroy'])->name('destroy');
     });
 
+    // 🔍 Attendance Audit (Compliance - HR Manager+)
+    Route::prefix('audit')->name('audit.')->group(function () {
+        Route::get('/timeline/{employee}/{date}', [\App\Http\Controllers\HumanResource\Attendance\AttendanceAuditController::class, 'timeline'])->name('timeline');
+        Route::get('/period/{employee}', [\App\Http\Controllers\HumanResource\Attendance\AttendanceAuditController::class, 'periodTimeline'])->name('period');
+        Route::get('/changes/{employee}/{date}', [\App\Http\Controllers\HumanResource\Attendance\AttendanceAuditController::class, 'changes'])->name('changes');
+        Route::get('/discrepancies', [\App\Http\Controllers\HumanResource\Attendance\AttendanceAuditController::class, 'discrepancies'])->name('discrepancies');
+        Route::post('/rebuild', [\App\Http\Controllers\HumanResource\Attendance\AttendanceAuditController::class, 'rebuild'])->name('rebuild');
+    });
+
     // ✅ OVERTIME MANAGEMENT (Complete Module)
     Route::prefix('overtime')->name('overtime.')->group(function () {
         // List & CRUD

@@ -137,9 +137,98 @@
                                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
+                    </div>
 
+                    {{-- Policy Configuration Section --}}
+                    <div class="border-t border-gray-200 pt-6 mt-6">
+                        <h3 class="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Konfigurasi Kebijakan Periode
+                        </h3>
+                        <p class="text-xs text-gray-500 mb-4">Pengaturan rate dan multiplier untuk perhitungan payroll
+                            periode ini</p>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {{-- Late Penalty Rate --}}
+                            <div>
+                                <label for="late_penalty_per_minute" class="block text-sm font-semibold text-gray-700 mb-2">
+                                    Penalty Terlambat (per menit)
+                                </label>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">Rp</span>
+                                    <input type="number" name="late_penalty_per_minute" id="late_penalty_per_minute"
+                                        value="{{ old('late_penalty_per_minute', 1000) }}" min="0" step="100"
+                                        class="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all @error('late_penalty_per_minute') border-red-500 @enderror">
+                                </div>
+                                <p class="mt-1.5 text-xs text-gray-500">Potongan per menit keterlambatan</p>
+                                @error('late_penalty_per_minute')
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+
+                            {{-- Standard Monthly Hours --}}
+                            <div>
+                                <label for="standard_monthly_hours" class="block text-sm font-semibold text-gray-700 mb-2">
+                                    Jam Kerja Standar/Bulan
+                                </label>
+                                <div class="relative">
+                                    <input type="number" name="standard_monthly_hours" id="standard_monthly_hours"
+                                        value="{{ old('standard_monthly_hours', 173) }}" min="100" max="250"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all @error('standard_monthly_hours') border-red-500 @enderror">
+                                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">jam</span>
+                                </div>
+                                <p class="mt-1.5 text-xs text-gray-500">Untuk menghitung hourly rate (default: 173)</p>
+                                @error('standard_monthly_hours')
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+
+                            {{-- Overtime Multiplier --}}
+                            <div>
+                                <label for="overtime_multiplier" class="block text-sm font-semibold text-gray-700 mb-2">
+                                    Multiplier Lembur
+                                </label>
+                                <div class="relative">
+                                    <input type="number" name="overtime_multiplier" id="overtime_multiplier"
+                                        value="{{ old('overtime_multiplier', 1.5) }}" min="1" max="5" step="0.1"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all @error('overtime_multiplier') border-red-500 @enderror">
+                                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">x</span>
+                                </div>
+                                <p class="mt-1.5 text-xs text-gray-500">Pengali upah lembur (1.5x = 150%)</p>
+                                @error('overtime_multiplier')
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+
+                            {{-- Overtime Hourly Rate --}}
+                            <div>
+                                <label for="overtime_hourly_rate" class="block text-sm font-semibold text-gray-700 mb-2">
+                                    Rate Lembur/Jam (Fixed)
+                                </label>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">Rp</span>
+                                    <input type="number" name="overtime_hourly_rate" id="overtime_hourly_rate"
+                                        value="{{ old('overtime_hourly_rate', 10000) }}" min="0" step="1000"
+                                        class="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all @error('overtime_hourly_rate') border-red-500 @enderror">
+                                </div>
+                                <p class="mt-1.5 text-xs text-gray-500">Override rate per jam (kosongkan = hitung dari gaji
+                                    pokok)</p>
+                                @error('overtime_hourly_rate')
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Notes Section --}}
+                    <div class="grid grid-cols-1 gap-6">
                         {{-- Notes --}}
-                        <div class="md:col-span-2">
+                        <div>
                             <label for="notes" class="block text-sm font-semibold text-gray-700 mb-2">
                                 Catatan
                             </label>

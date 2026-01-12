@@ -99,6 +99,11 @@ class PayrollPeriodController extends Controller
                 'end_date' => 'required|date|after_or_equal:start_date',
                 'payment_date' => 'required|date|after_or_equal:end_date',
                 'notes' => 'nullable|string',
+                // Policy config fields
+                'late_penalty_per_minute' => 'nullable|numeric|min:0',
+                'standard_monthly_hours' => 'nullable|integer|min:100|max:250',
+                'overtime_multiplier' => 'nullable|numeric|min:1|max:5',
+                'overtime_hourly_rate' => 'nullable|numeric|min:0',
             ], [
                 'year.required' => 'Tahun wajib diisi.',
                 'month.required' => 'Bulan wajib diisi.',
@@ -134,6 +139,11 @@ class PayrollPeriodController extends Controller
                 'payment_date' => $validated['payment_date'],
                 'status' => 'draft',
                 'notes' => $validated['notes'],
+                // Policy config with defaults
+                'late_penalty_per_minute' => $validated['late_penalty_per_minute'] ?? 1000,
+                'standard_monthly_hours' => $validated['standard_monthly_hours'] ?? 173,
+                'overtime_multiplier' => $validated['overtime_multiplier'] ?? 1.5,
+                'overtime_hourly_rate' => $validated['overtime_hourly_rate'] ?? 10000,
             ]);
 
             DB::commit();

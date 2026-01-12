@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use App\Enums\AttendanceStatus;
+use App\Enums\AttendanceSummaryStatus;
 use Carbon\Carbon;
 
 class AttendanceSummary extends Model
@@ -34,9 +36,12 @@ class AttendanceSummary extends Model
         'notes',
         'system_notes',
         'source_flags',
+        'lifecycle_status',
         'is_locked_for_payroll',
         'locked_at',
         'locked_by',
+        'reviewed_by',
+        'reviewed_at',
     ];
 
     protected $casts = [
@@ -52,14 +57,22 @@ class AttendanceSummary extends Model
         'detected_overtime_minutes' => 'integer',
         'approved_overtime_minutes' => 'integer',
         'source_flags' => 'array',
+        'status' => AttendanceStatus::class,
+        'lifecycle_status' => AttendanceSummaryStatus::class,
         'is_locked_for_payroll' => 'boolean',
         'locked_at' => 'datetime',
+        'reviewed_at' => 'datetime',
     ];
 
     // ✅ NEW Relationship
     public function lockedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'locked_by');
+    }
+
+    public function reviewedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
     }
 
     // ✅ NEW Accessor
@@ -119,17 +132,7 @@ class AttendanceSummary extends Model
      */
     public function lockForPayroll($userId): void
     {
-        $this->is_locked_for_payroll = true;
-        $this->locked_at = now();
-        $this->locked_by = $userId;
-        $this->save();
-
-        \Log::info('Attendance summary locked for payroll', [
-            'summary_id' => $this->id,
-            'employee_id' => $this->employee_id,
-            'date' => $this->date->format('Y-m-d'),
-            'locked_by' => $userId,
-        ]);
+        $this->transitionTo(AttendanceSummaryStatus::LOCKED, $userId, 'Dikunci untuk payroll');
     }
 
     /**
@@ -137,18 +140,113 @@ class AttendanceSummary extends Model
      */
     public function unlockForPayroll($userId, $reason): void
     {
-        $this->is_locked_for_payroll = false;
-        $this->locked_at = null;
-        $this->locked_by = null;
+        $this->transitionTo(AttendanceSummaryStatus::REVIEWED, $userId, $reason);
+    }
+
+    /**
+     * ========================================
+     * LIFECYCLE STATE MACHINE
+     * ========================================
+     */
+
+    /**
+     * Transition to a new lifecycle status with validation
+     */
+    public function transitionTo(AttendanceSummaryStatus $newStatus, ?int $userId = null, ?string $reason = null): void
+    {
+        $currentStatus = $this->lifecycle_status ?? AttendanceSummaryStatus::PENDING;
+
+        // Validate transition
+        if (!$currentStatus->canTransitionTo($newStatus)) {
+            throw new \InvalidArgumentException(
+                "Cannot transition from {$currentStatus->value} to {$newStatus->value}"
+            );
+        }
+
+        $oldStatus = $this->lifecycle_status;
+        $this->lifecycle_status = $newStatus;
+
+        // Handle status-specific updates
+        match ($newStatus) {
+            AttendanceSummaryStatus::REVIEWED => $this->handleReviewed($userId),
+            AttendanceSummaryStatus::LOCKED => $this->handleLocked($userId),
+            AttendanceSummaryStatus::PAYROLLED => $this->handlePayrolled(),
+            default => null,
+        };
+
         $this->save();
 
-        \Log::info('Attendance summary unlocked', [
+        // Record lifecycle event for audit trail
+        AttendanceEvent::create([
+            'employee_id' => $this->employee_id,
+            'date' => $this->date,
+            'event_type' => $this->getLifecycleEventType($newStatus),
+            'payload' => [
+                'old_status' => $oldStatus?->value,
+                'new_status' => $newStatus->value,
+                'reason' => $reason,
+            ],
+            'created_by' => $userId ?? auth()->id(),
+            'created_at' => now(),
+        ]);
+
+        \Log::info('Attendance summary lifecycle transition', [
             'summary_id' => $this->id,
             'employee_id' => $this->employee_id,
             'date' => $this->date->format('Y-m-d'),
-            'unlocked_by' => $userId,
+            'from' => $oldStatus?->value,
+            'to' => $newStatus->value,
+            'by' => $userId,
             'reason' => $reason,
         ]);
+    }
+
+    private function handleReviewed(?int $userId): void
+    {
+        $this->reviewed_by = $userId;
+        $this->reviewed_at = now();
+    }
+
+    private function handleLocked(?int $userId): void
+    {
+        $this->is_locked_for_payroll = true;
+        $this->locked_at = now();
+        $this->locked_by = $userId;
+    }
+
+    private function handlePayrolled(): void
+    {
+        // Mark as finalized
+        $this->is_locked_for_payroll = true;
+    }
+
+    private function getLifecycleEventType(AttendanceSummaryStatus $status): \App\Enums\AttendanceEventType
+    {
+        return match ($status) {
+            AttendanceSummaryStatus::CALCULATED => \App\Enums\AttendanceEventType::SUMMARY_CALCULATED,
+            AttendanceSummaryStatus::REVIEWED => \App\Enums\AttendanceEventType::SUMMARY_REVIEWED,
+            AttendanceSummaryStatus::LOCKED => \App\Enums\AttendanceEventType::SUMMARY_LOCKED,
+            AttendanceSummaryStatus::PAYROLLED => \App\Enums\AttendanceEventType::SUMMARY_LOCKED,
+            default => \App\Enums\AttendanceEventType::SUMMARY_CALCULATED,
+        };
+    }
+
+    /**
+     * Check if this summary can be edited directly
+     */
+    public function canEdit(): bool
+    {
+        $status = $this->lifecycle_status ?? AttendanceSummaryStatus::PENDING;
+        return $status->canEdit();
+    }
+
+    /**
+     * Check if changes require adjustment record
+     */
+    public function requiresAdjustment(): bool
+    {
+        $status = $this->lifecycle_status ?? AttendanceSummaryStatus::PENDING;
+        return $status->requiresAdjustment();
     }
 
     /**
@@ -338,11 +436,18 @@ class AttendanceSummary extends Model
 
     /**
      * Get status label in Indonesian
+     * Now uses AttendanceStatus enum's label() method
      */
     protected function statusLabel(): Attribute
     {
         return Attribute::make(
             get: function () {
+                // Status is now cast as AttendanceStatus enum
+                if ($this->status instanceof AttendanceStatus) {
+                    return $this->status->label();
+                }
+
+                // Fallback for legacy string values
                 return match ($this->status) {
                     'present' => 'Hadir',
                     'late' => 'Terlambat',
@@ -351,6 +456,8 @@ class AttendanceSummary extends Model
                     'sick' => 'Sakit',
                     'permission' => 'Izin',
                     'wfh' => 'Work From Home',
+                    'holiday' => 'Libur Nasional',
+                    'offday' => 'Hari Libur',
                     'business_trip' => 'Dinas Luar',
                     'alpha' => 'Alpha',
                     default => '-'
@@ -361,11 +468,18 @@ class AttendanceSummary extends Model
 
     /**
      * Get status badge class
+     * Now uses AttendanceStatus enum's badgeClass() method
      */
     protected function statusBadgeClass(): Attribute
     {
         return Attribute::make(
             get: function () {
+                // Status is now cast as AttendanceStatus enum
+                if ($this->status instanceof AttendanceStatus) {
+                    return $this->status->badgeClass();
+                }
+
+                // Fallback for legacy string values
                 return match ($this->status) {
                     'present' => 'bg-green-100 text-green-700',
                     'late' => 'bg-orange-100 text-orange-700',
@@ -374,6 +488,8 @@ class AttendanceSummary extends Model
                     'sick' => 'bg-purple-100 text-purple-700',
                     'permission' => 'bg-yellow-100 text-yellow-700',
                     'wfh' => 'bg-indigo-100 text-indigo-700',
+                    'holiday' => 'bg-pink-100 text-pink-700',
+                    'offday' => 'bg-gray-100 text-gray-700',
                     'business_trip' => 'bg-cyan-100 text-cyan-700',
                     'alpha' => 'bg-gray-100 text-gray-700',
                     default => 'bg-gray-100 text-gray-700'
@@ -430,11 +546,11 @@ class AttendanceSummary extends Model
 
         // Determine status
         if (!$log->has_clocked_in) {
-            $this->status = 'absent';
+            $this->status = AttendanceStatus::ABSENT;
         } elseif ($log->is_late) {
-            $this->status = 'late';
+            $this->status = AttendanceStatus::LATE;
         } else {
-            $this->status = 'present';
+            $this->status = AttendanceStatus::PRESENT;
         }
 
         // Calculate overtime (system detected)
@@ -501,7 +617,7 @@ class AttendanceSummary extends Model
             throw new \InvalidArgumentException("Invalid leave type: {$type}");
         }
 
-        $this->status = $type;
+        $this->status = AttendanceStatus::tryFrom($type) ?? AttendanceStatus::LEAVE;
         $this->notes = $notes;
         $this->save();
     }

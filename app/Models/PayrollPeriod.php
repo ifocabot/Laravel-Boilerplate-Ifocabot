@@ -6,9 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use App\Traits\Auditable;
 
 class PayrollPeriod extends Model
 {
+    use Auditable;
     protected $fillable = [
         'period_code',
         'period_name',
@@ -35,6 +37,11 @@ class PayrollPeriod extends Model
         'total_net_salary',
         'total_employees',
         'notes',
+        // Policy config columns
+        'late_penalty_per_minute',
+        'standard_monthly_hours',
+        'overtime_multiplier',
+        'overtime_hourly_rate',
     ];
 
     protected $casts = [
@@ -53,6 +60,11 @@ class PayrollPeriod extends Model
         'total_deductions' => 'decimal:2',
         'total_net_salary' => 'decimal:2',
         'total_employees' => 'integer',
+        // Policy config casts
+        'late_penalty_per_minute' => 'decimal:2',
+        'standard_monthly_hours' => 'integer',
+        'overtime_multiplier' => 'decimal:2',
+        'overtime_hourly_rate' => 'decimal:2',
     ];
 
     /**

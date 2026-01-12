@@ -187,14 +187,29 @@ class AttendanceAdjustment extends Model
 
     /**
      * Get active adjustment for employee/date (latest by type priority)
+     * Returns adjustment if it has status_override OR adjustment_minutes
      */
     public static function getActiveForDate(int $employeeId, $date): ?self
     {
         return self::where('employee_id', $employeeId)
             ->where('date', $date)
-            ->whereNotNull('status_override')
+            ->where(function ($query) {
+                $query->whereNotNull('status_override')
+                    ->orWhere('adjustment_minutes', '!=', 0);
+            })
             ->latest()
             ->first();
+    }
+
+    /**
+     * Get ALL adjustments for employee/date (for rebuild service)
+     */
+    public static function getAllForDate(int $employeeId, $date): \Illuminate\Support\Collection
+    {
+        return self::where('employee_id', $employeeId)
+            ->where('date', $date)
+            ->orderBy('created_at')
+            ->get();
     }
 
     /**

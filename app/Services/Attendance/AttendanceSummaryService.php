@@ -2,6 +2,7 @@
 
 namespace App\Services\Attendance;
 
+use App\Enums\AttendanceStatus;
 use App\Models\AttendanceAdjustment;
 use App\Models\AttendanceLog;
 use App\Models\AttendancePeriodSummary;
@@ -18,6 +19,24 @@ use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Attendance Summary Service
+ * 
+ * ⚠️ DEPRECATION NOTICE:
+ * This service is being phased out in favor of AttendanceRebuildService.
+ * 
+ * Still in use:
+ * - createPlannedSummaryRow() - for initializing daily rows from schedule
+ * - ensureRowsForDate() - cron job for pre-creating day's rows
+ * - evaluateEndOfDay() - end-of-day status finalization
+ * - Period locking/aggregation methods
+ * 
+ * DEPRECATED (use AttendanceRebuildService instead):
+ * - recalculate() - now dispatched via RecalculateAttendanceJob
+ * - Direct summary manipulation
+ * 
+ * The single source of truth is: Events → RebuildService → Summary
+ */
 class AttendanceSummaryService
 {
     /**
@@ -75,13 +94,13 @@ class AttendanceSummaryService
         // Check if holiday
         $isHoliday = NationalHoliday::where('date', $date->toDateString())->exists();
 
-        // Determine initial status
-        $status = 'absent'; // default
+        // Determine initial status - ALWAYS use enum values
+        $status = AttendanceStatus::ABSENT->value; // default
 
         if ($isHoliday) {
-            $status = 'holiday';
+            $status = AttendanceStatus::HOLIDAY->value;
         } elseif (!$schedule || $schedule->is_day_off) {
-            $status = 'offday';
+            $status = AttendanceStatus::OFFDAY->value;
         }
 
         // Create summary row
@@ -131,33 +150,25 @@ class AttendanceSummaryService
 
     /**
      * Recalculate daily summary for employee on specific date
-     * This is the MAIN method called by all triggers
+     * 
+     * @deprecated Use AttendanceRebuildService::rebuildDay() instead.
+     *             This method now delegates to RebuildService for single source of truth.
      */
     public function recalculate(int $employeeId, $date): AttendanceSummary
     {
         $date = Carbon::parse($date)->startOfDay();
 
-        // Get or create summary
-        $summary = AttendanceSummary::firstOrCreate(
-            ['employee_id' => $employeeId, 'date' => $date->toDateString()],
-            ['status' => 'absent']
-        );
+        // Delegate to RebuildService - the single source of computation
+        $rebuildService = app(AttendanceRebuildService::class);
 
-        // Check if locked - if so, create adjustment instead
-        if ($summary->is_locked_for_payroll) {
-            Log::warning('Cannot recalculate locked summary', [
-                'summary_id' => $summary->id,
-                'employee_id' => $employeeId,
-                'date' => $date->toDateString(),
-            ]);
-            return $summary;
-        }
-
-        return $this->performRecalculation($summary);
+        return $rebuildService->rebuildDay($employeeId, $date);
     }
 
     /**
      * Perform the actual recalculation
+     * 
+     * @deprecated No longer used - recalculate() now delegates to AttendanceRebuildService.
+     *             Kept for backward compatibility only.
      */
     protected function performRecalculation(AttendanceSummary $summary): AttendanceSummary
     {
@@ -201,14 +212,14 @@ class AttendanceSummaryService
 
         // Priority: Holiday > Leave > Log > Schedule
         if ($isHoliday) {
-            $summary->status = 'holiday';
+            $summary->status = AttendanceStatus::HOLIDAY;
             $sourceFlags[] = 'holiday';
         } elseif ($leaveRequest) {
-            $summary->status = $this->mapLeaveTypeToStatus($leaveRequest->leave_type);
+            $summary->status = AttendanceStatus::fromString($this->mapLeaveTypeToStatus($leaveRequest->leave_type));
             $summary->leave_request_id = $leaveRequest->id;
             $sourceFlags[] = 'leave';
         } elseif (!$schedule || $schedule->is_day_off) {
-            $summary->status = 'offday';
+            $summary->status = AttendanceStatus::OFFDAY;
             $sourceFlags[] = 'schedule';
         } elseif ($log) {
             $this->calculateFromLog($summary, $log, $schedule);
@@ -216,7 +227,7 @@ class AttendanceSummaryService
         } else {
             // Scheduled to work but no log and no leave = alpha/absent
             // We leave as 'absent' until end of day, then batch mark as alpha
-            $summary->status = 'absent';
+            $summary->status = AttendanceStatus::ABSENT;
             $sourceFlags[] = 'schedule';
         }
 
@@ -272,15 +283,15 @@ class AttendanceSummaryService
 
         // Determine status based on log
         if (!$log->clock_in_time) {
-            $summary->status = 'absent';
+            $summary->status = AttendanceStatus::ABSENT;
             return;
         }
 
         if ($log->is_late ?? false) {
-            $summary->status = 'late';
+            $summary->status = AttendanceStatus::LATE;
             $summary->late_minutes = $log->late_duration_minutes ?? 0;
         } else {
-            $summary->status = 'present';
+            $summary->status = AttendanceStatus::PRESENT;
         }
 
         // Calculate work duration
@@ -324,27 +335,89 @@ class AttendanceSummaryService
      */
 
     /**
-     * Mark all unlogged scheduled work days as ALPHA
+     * Evaluate and finalize status for dates that have passed
      * Called by daily scheduler at 23:55
+     * 
+     * This delegates to RebuildService for deterministic evaluation.
+     * Single source of truth: Events → RebuildService → Summary
+     */
+    public function evaluateEndOfDay($date): array
+    {
+        $date = Carbon::parse($date)->startOfDay();
+        $results = ['rebuilt' => 0, 'skipped_locked' => 0];
+
+        // Get all employees with summaries for this date that need evaluation
+        $summaries = AttendanceSummary::where('date', $date->toDateString())
+            ->where('is_locked_for_payroll', false)
+            ->get();
+
+        $rebuildService = app(AttendanceRebuildService::class);
+
+        foreach ($summaries as $summary) {
+            try {
+                // Delegate to RebuildService - the SINGLE source of truth
+                $rebuildService->rebuildDay($summary->employee_id, $date);
+                $results['rebuilt']++;
+            } catch (\Exception $e) {
+                Log::error('EOD rebuild failed', [
+                    'employee_id' => $summary->employee_id,
+                    'date' => $date->toDateString(),
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        Log::info('End of day attendance evaluation via RebuildService', [
+            'date' => $date->toDateString(),
+            'results' => $results,
+        ]);
+
+        return $results;
+    }
+
+    /**
+     * @deprecated No longer used - evaluateEndOfDay now delegates to RebuildService.
+     * Kept for backward compatibility only.
+     */
+    protected function evaluateFinalStatus(AttendanceSummary $summary, Carbon $date): string
+    {
+        // Check for holiday
+        if (NationalHoliday::where('date', $date->toDateString())->exists()) {
+            return 'holiday';
+        }
+
+        // Check for approved leave
+        $leave = LeaveRequest::where('employee_id', $summary->employee_id)
+            ->where('status', 'approved')
+            ->where('start_date', '<=', $date)
+            ->where('end_date', '>=', $date)
+            ->first();
+
+        if ($leave) {
+            return $this->mapLeaveTypeToStatus($leave->leaveType);
+        }
+
+        // Check schedule - if no schedule or day off, not alpha
+        $schedule = EmployeeSchedule::where('employee_id', $summary->employee_id)
+            ->whereDate('date', $date)
+            ->first();
+
+        if (!$schedule || $schedule->is_day_off) {
+            return 'offday';
+        }
+
+        // Has schedule, no clock in, no leave = absent (will be marked alpha)
+        return 'absent';
+    }
+
+    /**
+     * @deprecated Use evaluateEndOfDay() instead
+     * Kept for backward compatibility
      */
     public function markAlphaForDate($date): int
     {
-        $date = Carbon::parse($date)->startOfDay();
-
-        $updated = AttendanceSummary::where('date', $date->toDateString())
-            ->where('status', 'absent')
-            ->where('is_locked_for_payroll', false)
-            ->update([
-                'status' => 'alpha',
-                'system_notes' => DB::raw("CONCAT(IFNULL(system_notes, ''), ' [Auto-marked as ALPHA]')"),
-            ]);
-
-        Log::info('Marked absent as alpha', [
-            'date' => $date->toDateString(),
-            'count' => $updated,
-        ]);
-
-        return $updated;
+        $results = $this->evaluateEndOfDay($date);
+        return $results['rebuilt'] ?? 0;
     }
 
     /**
@@ -498,37 +571,71 @@ class AttendanceSummaryService
             throw new \Exception('No open payroll period found for adjustment');
         }
 
-        $adjustment = PayrollAdjustment::create([
-            'employee_id' => $summary->employee_id,
-            'payroll_period_id' => $targetPeriod->id,
-            'source_period_id' => $summary->payroll_period_id,
-            'source_date' => $summary->date,
-            'type' => $type,
-            'amount_minutes' => $amountMinutes,
-            'reason' => $reason,
-            'reference_type' => $referenceType,
-            'reference_id' => $referenceId,
-            'status' => PayrollAdjustment::STATUS_PENDING,
-            'created_by' => $userId,
-        ]);
+        // STEP 3 FIX: Use firstOrCreate for idempotency (prevent duplicates)
+        $adjustment = PayrollAdjustment::firstOrCreate(
+            // Natural key - lookup criteria
+            [
+                'employee_id' => $summary->employee_id,
+                'type' => $type,
+                'reference_type' => $referenceType,
+                'reference_id' => $referenceId,
+                'source_date' => $summary->date,
+            ],
+            // Attributes if creating new
+            [
+                'payroll_period_id' => $targetPeriod->id,
+                'source_period_id' => $summary->payroll_period_id,
+                'amount_minutes' => $amountMinutes,
+                'reason' => $reason,
+                'status' => PayrollAdjustment::STATUS_PENDING,
+                'created_by' => $userId,
+            ]
+        );
 
-        Log::info('Created payroll adjustment for locked period', [
-            'adjustment_id' => $adjustment->id,
-            'source_summary_id' => $summary->id,
-            'target_period_id' => $targetPeriod->id,
-        ]);
+        if ($adjustment->wasRecentlyCreated) {
+            Log::info('Created payroll adjustment for locked period', [
+                'adjustment_id' => $adjustment->id,
+                'source_summary_id' => $summary->id,
+                'target_period_id' => $targetPeriod->id,
+            ]);
+        }
 
         return $adjustment;
     }
 
     /**
-     * Find target period for adjustment (next open period)
+     * STEP 2 FIX: Deterministic period targeting
+     * 
+     * Priority:
+     * 1. If source period exists, find NEXT period after it
+     * 2. Fallback: current active period
+     * 3. Last fallback: next editable period
      */
     protected function findTargetPeriodForAdjustment(?int $sourcePeriodId): ?PayrollPeriod
     {
-        // Try to find next open period
-        return PayrollPeriod::where('attendance_locked', false)
-            ->where('status', 'draft')
+        // 1. If source period exists, get NEXT period
+        if ($sourcePeriodId) {
+            $source = PayrollPeriod::find($sourcePeriodId);
+            if ($source) {
+                $next = PayrollPeriod::whereDate('start_date', '>', $source->end_date)
+                    ->whereIn('status', ['draft', 'processing'])
+                    ->orderBy('start_date', 'asc')
+                    ->first();
+                if ($next)
+                    return $next;
+            }
+        }
+
+        // 2. Fallback: current active period
+        $current = PayrollPeriod::whereDate('start_date', '<=', now())
+            ->whereDate('end_date', '>=', now())
+            ->whereIn('status', ['draft', 'processing'])
+            ->first();
+        if ($current)
+            return $current;
+
+        // 3. Last fallback: next editable period
+        return PayrollPeriod::whereIn('status', ['draft', 'processing'])
             ->orderBy('start_date', 'asc')
             ->first();
     }

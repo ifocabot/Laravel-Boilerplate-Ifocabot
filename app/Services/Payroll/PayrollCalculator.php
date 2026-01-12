@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollSlip;
 use App\Models\PayrollSlipItem;
+use App\Models\PayrollAdjustment;
 use App\Models\AttendancePeriodSummary;
 use Illuminate\Support\Collection;
 
@@ -45,6 +46,9 @@ class PayrollCalculator
     private float $totalDeductions = 0;
     private bool $basicSalaryUsesProration = false;
 
+    // Adjustments to be marked as applied after slip saved
+    private array $appliedAdjustments = [];
+
     public function __construct()
     {
         $this->bpjsCalculator = new BpjsCalculator();
@@ -75,6 +79,9 @@ class PayrollCalculator
         // Calculate deductions
         $this->calculateDeductions();
 
+        // STEP 4 (CRITICAL): Apply approved adjustments to slip
+        $this->applyAdjustments();
+
         // Create and return slip
         return $this->createSlip();
     }
@@ -99,7 +106,7 @@ class PayrollCalculator
             $this->leaveDays + $this->sickDays + $this->permissionDays;
 
         // attendanceOnlyDays = only physically present days (for meal/transport)
-        $this->attendanceOnlyDays = $this->presentDays;
+        $this->attendanceOnlyDays = $this->presentDays + $this->lateDays; // Late = still present
     }
 
     /**
@@ -149,9 +156,9 @@ class PayrollCalculator
         // Determine base amount using ERP hierarchy
         $baseAmount = $this->resolveEffectiveAmount($empComponent, $component);
 
-        // Calculate attendance rate
+        // Step 3 FIX: Use attendanceOnlyDays (present + late) for minimum attendance
         $attendanceRate = $this->scheduledWorkingDays > 0
-            ? ($this->presentDays / $this->scheduledWorkingDays) * 100
+            ? ($this->attendanceOnlyDays / $this->scheduledWorkingDays) * 100
             : 100;
 
         // CHECK: Minimum attendance requirement
@@ -295,12 +302,15 @@ class PayrollCalculator
             ->first(fn($c) => $c->component->code === 'BASIC_SALARY');
 
         $masterBasicSalary = $masterBasicSalaryComponent?->amount ?? 0;
+        // STEP 2 FIX: Get config from period, fallback to defaults
+        $standardMonthlyHours = $this->period->standard_monthly_hours ?? 173;
+        $overtimeMultiplier = $this->period->overtime_multiplier ?? 1.5;
 
-        // Calculate hourly rate (173 hours/month standard)
-        $hourlyRate = $masterBasicSalary > 0 ? $masterBasicSalary / 173 : 0;
+        // Calculate hourly rate
+        $hourlyRate = $standardMonthlyHours > 0 ? $masterBasicSalary / $standardMonthlyHours : 0;
 
-        // 1.5x multiplier for regular overtime
-        $overtimeAmount = round(($this->totalOvertimeMinutes / 60) * $hourlyRate * 1.5, 0);
+        // Apply multiplier from config
+        $overtimeAmount = round(($this->totalOvertimeMinutes / 60) * $hourlyRate * $overtimeMultiplier, 0);
 
         $this->earnings[] = [
             'component_id' => null,
@@ -315,7 +325,8 @@ class PayrollCalculator
                 'minutes' => $this->totalOvertimeMinutes,
                 'hours' => round($this->totalOvertimeMinutes / 60, 2),
                 'hourly_rate' => $hourlyRate,
-                'multiplier' => 1.5,
+                'multiplier' => $overtimeMultiplier,
+                'standard_monthly_hours' => $standardMonthlyHours,
             ],
         ];
 
@@ -397,7 +408,9 @@ class PayrollCalculator
             return;
         }
 
-        $lateDeduction = round($this->totalLateMinutes * 1000, 0); // Rp 1000/menit
+        // STEP 1 FIX: Get rate from period config, fallback to 1000
+        $lateRatePerMinute = $this->period->late_penalty_per_minute ?? 1000;
+        $lateDeduction = round($this->totalLateMinutes * $lateRatePerMinute, 0);
 
         $this->deductions[] = [
             'component_id' => null,
@@ -407,7 +420,7 @@ class PayrollCalculator
             'type' => 'deduction',
             'base_amount' => $lateDeduction,
             'amount' => $lateDeduction,
-            'meta' => ['minutes' => $this->totalLateMinutes, 'rate_per_minute' => 1000],
+            'meta' => ['minutes' => $this->totalLateMinutes, 'rate_per_minute' => $lateRatePerMinute],
         ];
     }
 
@@ -476,12 +489,186 @@ class PayrollCalculator
     }
 
     /**
+     * STEP 4 (CRITICAL): Apply approved adjustments to earnings/deductions
+     * This is what makes adjustments actually affect the payroll!
+     */
+    private function applyAdjustments(): void
+    {
+        $adjustments = PayrollAdjustment::where('employee_id', $this->employee->id)
+            ->where('payroll_period_id', $this->period->id)
+            ->where('status', PayrollAdjustment::STATUS_APPROVED)
+            ->whereNull('applied_at')
+            ->get();
+
+        foreach ($adjustments as $adj) {
+            match ($adj->type) {
+                PayrollAdjustment::TYPE_OVERTIME => $this->applyOvertimeAdjustment($adj),
+                PayrollAdjustment::TYPE_LATE_CORRECTION => $this->applyLateAdjustment($adj),
+                default => $this->applyGenericAdjustment($adj),
+            };
+
+            $this->appliedAdjustments[] = $adj;
+        }
+    }
+
+    /**
+     * Apply overtime adjustment (adds to earnings)
+     * Uses SAME rate calculation as normal overtime for consistency
+     */
+    private function applyOvertimeAdjustment(PayrollAdjustment $adj): void
+    {
+        // Get rate using same logic as calculateOvertime()
+        $standardMonthlyHours = $this->period->standard_monthly_hours ?? 173;
+        $overtimeMultiplier = $this->period->overtime_multiplier ?? 1.5;
+
+        // If period has fixed hourly rate, use that; otherwise calculate from basic salary
+        if ($this->period->overtime_hourly_rate) {
+            $hourlyRate = (float) $this->period->overtime_hourly_rate;
+        } else {
+            $masterBasicSalary = $this->employee->activePayrollComponents
+                ->first(fn($c) => $c->component->code === 'BASIC_SALARY')
+                    ?->amount ?? 0;
+            $hourlyRate = $standardMonthlyHours > 0 ? $masterBasicSalary / $standardMonthlyHours : 0;
+        }
+
+        $hours = ($adj->amount_minutes ?? 0) / 60;
+        $amount = round($hours * $hourlyRate * $overtimeMultiplier, 0);
+        $dateLabel = $adj->source_date?->format('d/m/Y') ?? 'N/A';
+
+        if ($amount > 0) {
+            $this->earnings[] = [
+                'code' => 'ADJ_OVERTIME',
+                'name' => "Adjustment Overtime ({$dateLabel})",
+                'component_id' => null,
+                'category' => 'overtime',
+                'type' => 'earning',
+                'base_amount' => $amount,
+                'amount' => $amount,
+                'is_taxable' => true,
+                'meta' => [
+                    'adjustment_id' => $adj->id,
+                    'minutes' => $adj->amount_minutes,
+                    'hourly_rate' => $hourlyRate,
+                    'multiplier' => $overtimeMultiplier,
+                    'reason' => $adj->reason,
+                ],
+            ];
+            $this->totalEarnings += $amount;
+        }
+    }
+
+    /**
+     * Apply late correction adjustment (reduces deduction or adds earning)
+     */
+    private function applyLateAdjustment(PayrollAdjustment $adj): void
+    {
+        // Late correction typically returns deducted amount
+        $amount = (float) ($adj->amount_money ?? 0);
+        $dateLabel = $adj->source_date?->format('d/m/Y') ?? 'N/A';
+
+        if ($amount != 0) {
+            if ($amount > 0) {
+                // Positive = returning deducted amount (earning)
+                $this->earnings[] = [
+                    'code' => 'ADJ_LATE_RETURN',
+                    'name' => "Koreksi Keterlambatan ({$dateLabel})",
+                    'component_id' => null,
+                    'category' => 'adjustment',
+                    'type' => 'earning',
+                    'base_amount' => $amount,
+                    'amount' => $amount,
+                    'is_taxable' => false,
+                    'meta' => [
+                        'adjustment_id' => $adj->id,
+                        'reason' => $adj->reason,
+                    ],
+                ];
+                $this->totalEarnings += $amount;
+            } else {
+                // Negative = additional deduction
+                $absAmount = abs($amount);
+                $this->deductions[] = [
+                    'code' => 'ADJ_LATE_DEDUCT',
+                    'name' => "Potongan Keterlambatan ({$dateLabel})",
+                    'component_id' => null,
+                    'category' => 'penalty',
+                    'type' => 'deduction',
+                    'base_amount' => $absAmount,
+                    'amount' => $absAmount,
+                    'meta' => [
+                        'adjustment_id' => $adj->id,
+                        'reason' => $adj->reason,
+                    ],
+                ];
+                $this->totalDeductions += $absAmount;
+            }
+        }
+    }
+
+    /**
+     * Apply generic adjustment (use amount_money directly)
+     */
+    private function applyGenericAdjustment(PayrollAdjustment $adj): void
+    {
+        $amount = (float) ($adj->amount_money ?? 0);
+
+        if ($amount > 0) {
+            $this->earnings[] = [
+                'code' => 'ADJ_' . strtoupper($adj->type),
+                'name' => 'Adjustment: ' . $adj->type_label,
+                'component_id' => null,
+                'category' => 'adjustment',
+                'type' => 'earning',
+                'base_amount' => $amount,
+                'amount' => $amount,
+                'is_taxable' => false,
+                'meta' => [
+                    'adjustment_id' => $adj->id,
+                    'reason' => $adj->reason,
+                ],
+            ];
+            $this->totalEarnings += $amount;
+        } elseif ($amount < 0) {
+            $absAmount = abs($amount);
+            $this->deductions[] = [
+                'code' => 'ADJ_' . strtoupper($adj->type),
+                'name' => 'Potongan: ' . $adj->type_label,
+                'component_id' => null,
+                'category' => 'adjustment',
+                'type' => 'deduction',
+                'base_amount' => $absAmount,
+                'amount' => $absAmount,
+                'meta' => [
+                    'adjustment_id' => $adj->id,
+                    'reason' => $adj->reason,
+                ],
+            ];
+            $this->totalDeductions += $absAmount;
+        }
+    }
+
+    /**
      * Create the payroll slip
      */
     private function createSlip(): PayrollSlip
     {
         $currentCareer = $this->employee->currentCareer;
         $netSalary = $this->totalEarnings - $this->totalDeductions;
+
+        // Step 4: Guard for deduction > gross - cap at 0, track excess
+        $excessDeduction = 0;
+        if ($netSalary < 0) {
+            $excessDeduction = abs($netSalary);
+            $netSalary = 0;
+
+            \Log::warning('Payroll deductions exceed gross', [
+                'employee_id' => $this->employee->id,
+                'period_id' => $this->period->id,
+                'gross' => $this->totalEarnings,
+                'deductions' => $this->totalDeductions,
+                'excess' => $excessDeduction,
+            ]);
+        }
 
         // Build calculation snapshot
         $calculationSnapshot = $this->buildSnapshot();
@@ -514,11 +701,13 @@ class PayrollCalculator
             'position' => $currentCareer?->position?->name,
             'level' => $currentCareer?->level?->grade_code,
 
-            // Working days
-            'working_days' => $this->scheduledWorkingDays,
-            'actual_days' => $this->presentDays,
+            // Working days - Step 2: Clear distinction
+            'working_days' => $this->scheduledWorkingDays,      // Total hari kerja dalam period
+            'actual_days' => $this->attendanceOnlyDays,          // Hari hadir fisik (present + late)
+            'paid_days' => $this->paidDays,                      // Hari dibayar (untuk proration)
             'absent_days' => $this->absentDays,
             'leave_days' => $this->leaveDays + $this->sickDays + $this->permissionDays,
+            'late_days' => $this->lateDays,
 
             // Components (JSON for backward compatibility)
             'earnings' => $this->earnings,
@@ -527,7 +716,8 @@ class PayrollCalculator
             // Totals
             'gross_salary' => $this->totalEarnings,
             'total_deductions' => $this->totalDeductions,
-            'net_salary' => max(0, $netSalary),
+            'net_salary' => $netSalary,  // Already capped at 0
+            'excess_deduction' => $excessDeduction,  // Carry over to next period
 
             // Tax
             'tax_status' => $this->employee->sensitiveData?->tax_status ?? 'TK/0',
@@ -556,6 +746,11 @@ class PayrollCalculator
 
         // Create normalized slip items
         $this->createSlipItems($slip);
+
+        // STEP 4: Mark adjustments as applied
+        foreach ($this->appliedAdjustments as $adjustment) {
+            $adjustment->markApplied($slip);
+        }
 
         return $slip;
     }

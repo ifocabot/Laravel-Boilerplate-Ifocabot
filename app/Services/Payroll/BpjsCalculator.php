@@ -87,16 +87,46 @@ class BpjsCalculator
 
     /**
      * Get JKK rate by risk class
+     * Supports both string ('low', 'medium') and integer (1-5) inputs
      */
-    private function getJkkRate(string $riskClass): float
+    private function getJkkRate(string|int|null $riskClass): float
     {
-        return match ($riskClass) {
+        // Normalize risk class (handle integer input)
+        $normalized = $this->normalizeRiskClass($riskClass);
+
+        return match ($normalized) {
             'very_low' => 0.0024,  // 0.24%
             'low' => 0.0054,       // 0.54%
             'medium' => 0.0089,    // 0.89%
             'high' => 0.0127,      // 1.27%
             'very_high' => 0.0174, // 1.74%
             default => 0.0024,     // Default: very low risk
+        };
+    }
+
+    /**
+     * Normalize risk class to string format
+     * Handles: integer 1-5, string names, null
+     */
+    private function normalizeRiskClass(string|int|null $riskClass): string
+    {
+        if ($riskClass === null) {
+            return 'very_low';
+        }
+
+        // If already valid string, return as-is
+        if (is_string($riskClass) && in_array($riskClass, ['very_low', 'low', 'medium', 'high', 'very_high'])) {
+            return $riskClass;
+        }
+
+        // Convert integer to string
+        return match ((int) $riskClass) {
+            1 => 'very_low',
+            2 => 'low',
+            3 => 'medium',
+            4 => 'high',
+            5 => 'very_high',
+            default => 'very_low',
         };
     }
 

@@ -137,23 +137,22 @@ class PayrollAdjustmentController extends Controller
                     if (!$period)
                         return;
 
-                    // Block if period is already finalized
-                    if (in_array($period->status, ['approved', 'paid', 'closed'])) {
-                        $fail('Tidak dapat membuat adjustment pada periode yang sudah disetujui atau dibayar.');
+                    // Block if period is already finalized (paid/closed)
+                    if (in_array($period->status, ['paid', 'closed'])) {
+                        $fail('Tidak dapat membuat adjustment pada periode yang sudah dibayar/ditutup.');
                     }
 
-                    // Block attendance-type adjustments if attendance is locked
-                    $attendanceTypes = ['attendance_correction', 'overtime', 'late_correction'];
-                    if ($period->attendance_locked && in_array($request->input('type'), $attendanceTypes)) {
-                        $fail('Data kehadiran periode ini sudah dikunci, tidak bisa melakukan koreksi kehadiran/lembur.');
-                    }
+                    // NOTE: We intentionally DO NOT block attendance types when locked.
+                    // Adjustments are MEANT for retroactive fixes after lock.
+                    // The adjustment will be applied to THIS period (if still draft)
+                    // or redirected to next period automatically by the engine.
                 },
             ],
             'source_date' => 'nullable|date',
             'type' => 'required|in:overtime,leave_correction,attendance_correction,late_correction,schedule_change,manual,other',
-            'amount_minutes' => 'nullable|integer',
-            'amount_days' => 'nullable|numeric|min:0',
-            'amount_money' => 'nullable|numeric|min:0',
+            'amount_minutes' => 'nullable|integer', // Signed: positive = add, negative = deduct
+            'amount_days' => 'nullable|numeric',    // Signed: positive = add, negative = deduct
+            'amount_money' => 'nullable|numeric',   // FIX 3: Signed allowed (no min:0)
             'reason' => 'required|string|max:1000',
             'notes' => 'nullable|string|max:1000',
         ]);

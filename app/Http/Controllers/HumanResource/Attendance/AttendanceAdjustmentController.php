@@ -106,16 +106,29 @@ class AttendanceAdjustmentController extends Controller
             $validated['employee_id'],
             $validated['date'],
             $validated['status_override'],
-            $validated['adjustment_minutes'],
+            $validated['adjustment_minutes'] ?? 0,
             $validated['reason'],
             auth()->id()
         );
 
-        // Trigger recalculate to apply the adjustment
-        $this->attendanceService->recalculate(
-            $validated['employee_id'],
-            $validated['date']
+        // ⭐ Emit AttendanceEvent for audit trail
+        \App\Models\AttendanceEvent::recordManualCorrection(
+            employeeId: $validated['employee_id'],
+            date: Carbon::parse($validated['date']),
+            changes: [
+                'status' => $validated['status_override'],
+                'adjustment_minutes' => $validated['adjustment_minutes'] ?? 0,
+            ],
+            reason: $validated['reason'],
+            correctedBy: auth()->id()
         );
+
+        // ⭐ Dispatch async rebuild job
+        dispatch(new \App\Jobs\RecalculateAttendanceJob(
+            $validated['employee_id'],
+            $validated['date'],
+            'manual_adjustment'
+        ));
 
         return redirect()
             ->route('hris.attendance.adjustments.index')
