@@ -199,4 +199,42 @@ class PayrollPeriod extends Model
     {
         return in_array($this->status, ['approved', 'paid', 'closed']);
     }
+
+    /**
+     * Check if period is locked (no mutations allowed)
+     * Locked = paid or closed. Use PayrollAdjustment for changes.
+     */
+    public function isLocked(): bool
+    {
+        return in_array($this->status, ['paid', 'closed']);
+    }
+
+    /**
+     * Throw exception if period is locked
+     * 
+     * @throws \Exception
+     */
+    public function guardAgainstLock(string $action = 'modify'): void
+    {
+        if ($this->isLocked()) {
+            throw new \Exception(
+                "Cannot {$action}: Period \"{$this->period_name}\" is {$this->status}. " .
+                "Use PayrollAdjustment instead."
+            );
+        }
+    }
+
+    /**
+     * Throw exception if period is not editable
+     * 
+     * @throws \Exception
+     */
+    public function guardAgainstFinalized(string $action = 'modify'): void
+    {
+        if ($this->isFinalized()) {
+            throw new \Exception(
+                "Cannot {$action}: Period \"{$this->period_name}\" is already {$this->status}."
+            );
+        }
+    }
 }

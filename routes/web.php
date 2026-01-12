@@ -309,6 +309,15 @@ Route::middleware(['auth'])->prefix('hris/attendance')->name('hris.attendance.')
         Route::post('/{id}/unlock-for-correction', [AttendanceSummaryController::class, 'unlockForCorrection'])->name('unlock-for-correction');
     });
 
+    // ⭐ Attendance Adjustments (Ledger View + Manual Corrections)
+    Route::prefix('adjustments')->name('adjustments.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\HumanResource\Attendance\AttendanceAdjustmentController::class, 'index'])->name('index');
+        Route::get('/create', [\App\Http\Controllers\HumanResource\Attendance\AttendanceAdjustmentController::class, 'create'])->name('create');
+        Route::post('/', [\App\Http\Controllers\HumanResource\Attendance\AttendanceAdjustmentController::class, 'store'])->name('store');
+        Route::get('/{adjustment}', [\App\Http\Controllers\HumanResource\Attendance\AttendanceAdjustmentController::class, 'show'])->name('show');
+        Route::delete('/{adjustment}', [\App\Http\Controllers\HumanResource\Attendance\AttendanceAdjustmentController::class, 'destroy'])->name('destroy');
+    });
+
     // ✅ OVERTIME MANAGEMENT (Complete Module)
     Route::prefix('overtime')->name('overtime.')->group(function () {
         // List & CRUD

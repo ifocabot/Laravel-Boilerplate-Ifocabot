@@ -2,6 +2,7 @@
 
 namespace App\Services\Attendance;
 
+use App\Models\AttendanceAdjustment;
 use App\Models\AttendanceLog;
 use App\Models\AttendancePeriodSummary;
 use App\Models\AttendanceSummary;
@@ -224,6 +225,21 @@ class AttendanceSummaryService
             $summary->approved_overtime_minutes = $overtimeRequest->approved_duration_minutes;
             $summary->overtime_request_id = $overtimeRequest->id;
             $sourceFlags[] = 'overtime';
+        }
+
+        // ⭐ Check attendance adjustments ledger (makes regen-safe)
+        $adjustment = AttendanceAdjustment::getActiveForDate($employeeId, $date);
+        if ($adjustment) {
+            if ($adjustment->status_override) {
+                $summary->status = $adjustment->status_override;
+            }
+            if ($adjustment->adjustment_minutes !== 0) {
+                // Add/subtract overtime minutes from adjustment
+                $summary->approved_overtime_minutes =
+                    ($summary->approved_overtime_minutes ?? 0) + $adjustment->adjustment_minutes;
+            }
+            $summary->notes = ($summary->notes ?? '') . ' [Adj: ' . $adjustment->type_label . ']';
+            $sourceFlags[] = 'adjustment';
         }
 
         // Update source flags

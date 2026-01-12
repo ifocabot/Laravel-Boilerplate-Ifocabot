@@ -60,9 +60,19 @@ trait HasApprovalWorkflow
 
     /**
      * Submit this model for approval
+     * 
+     * @throws \Exception if already has pending request
      */
     public function submitForApproval(): ApprovalRequest
     {
+        // ⭐ Early guard: Prevent double submit at trait level
+        if ($this->hasPendingApprovalRequest()) {
+            throw new \Exception(
+                "Cannot submit: This item already has a pending approval request. " .
+                "Please wait for the current request to be processed or cancel it first."
+            );
+        }
+
         $service = app(ApprovalWorkflowService::class);
 
         return $service->submitForApproval(
@@ -70,6 +80,26 @@ trait HasApprovalWorkflow
             $this->getWorkflowType(),
             $this->getRequesterId()
         );
+    }
+
+    /**
+     * ⭐ Check if there's an active (pending/needs_configuration) approval request
+     */
+    public function hasActiveApprovalRequest(): bool
+    {
+        $status = $this->approvalRequest?->status;
+        return in_array($status, [
+            ApprovalRequest::STATUS_PENDING,
+            ApprovalRequest::STATUS_NEEDS_CONFIGURATION,
+        ]);
+    }
+
+    /**
+     * Alias for hasActiveApprovalRequest
+     */
+    public function hasPendingApprovalRequest(): bool
+    {
+        return $this->hasActiveApprovalRequest();
     }
 
     /**

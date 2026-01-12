@@ -111,7 +111,10 @@ class ShiftSeeder extends Seeder
         ];
 
         foreach ($shifts as $shift) {
-            Shift::create($shift);
+            Shift::updateOrCreate(
+                ['code' => $shift['code']],
+                $shift
+            );
         }
 
         $this->command->info('✅ Default shifts created successfully!');

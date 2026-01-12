@@ -561,42 +561,19 @@ class PayrollCalculator
     }
 
     /**
-     * Create normalized slip items for reporting
+     * ⭐ Create normalized slip items for reporting
+     * Uses upsertFromArray to prevent duplicates on rerun
      */
     private function createSlipItems(PayrollSlip $slip): void
     {
         $displayOrder = 0;
 
         foreach ($this->earnings as $earning) {
-            PayrollSlipItem::create([
-                'payroll_slip_id' => $slip->id,
-                'payroll_component_id' => $earning['component_id'] ?? null,
-                'component_code' => $earning['code'],
-                'component_name' => $earning['name'],
-                'type' => 'earning',
-                'category' => $earning['category'],
-                'base_amount' => $earning['base_amount'] ?? $earning['amount'],
-                'final_amount' => $earning['amount'],
-                'meta' => $earning['meta'] ?? null,
-                'display_order' => ++$displayOrder,
-                'is_taxable' => $earning['is_taxable'] ?? false,
-            ]);
+            PayrollSlipItem::upsertFromArray($slip->id, $earning, 'earning', ++$displayOrder);
         }
 
         foreach ($this->deductions as $deduction) {
-            PayrollSlipItem::create([
-                'payroll_slip_id' => $slip->id,
-                'payroll_component_id' => $deduction['component_id'] ?? null,
-                'component_code' => $deduction['code'],
-                'component_name' => $deduction['name'],
-                'type' => 'deduction',
-                'category' => $deduction['category'],
-                'base_amount' => $deduction['base_amount'] ?? $deduction['amount'],
-                'final_amount' => $deduction['amount'],
-                'meta' => $deduction['meta'] ?? null,
-                'display_order' => ++$displayOrder,
-                'is_taxable' => false,
-            ]);
+            PayrollSlipItem::upsertFromArray($slip->id, $deduction, 'deduction', ++$displayOrder);
         }
     }
 

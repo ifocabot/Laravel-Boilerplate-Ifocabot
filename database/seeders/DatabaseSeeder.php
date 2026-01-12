@@ -11,6 +11,11 @@ class DatabaseSeeder extends Seeder
      * 
      * Run with: php artisan db:seed
      * Fresh seed: php artisan migrate:fresh --seed
+     * 
+     * For DEMO (single account with all modules):
+     *   php artisan migrate:fresh --seed --seeder=DemoSeeder
+     * 
+     * To customize attendance data, edit DemoAttendanceSeeder.php $config array
      */
     public function run(): void
     {

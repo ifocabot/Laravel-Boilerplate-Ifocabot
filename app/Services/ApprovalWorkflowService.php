@@ -41,6 +41,22 @@ class ApprovalWorkflowService
      */
     public function submitForApproval(Model $requestable, string $workflowType, int $requesterId): ApprovalRequest
     {
+        // ⭐ Guard: Block duplicate pending/needs_configuration requests
+        $existingActive = ApprovalRequest::where('requestable_type', get_class($requestable))
+            ->where('requestable_id', $requestable->id)
+            ->whereIn('status', [
+                ApprovalRequest::STATUS_PENDING,
+                ApprovalRequest::STATUS_NEEDS_CONFIGURATION,
+            ])
+            ->first();
+
+        if ($existingActive) {
+            throw new \Exception(
+                "Cannot submit: Approval request already exists with status '{$existingActive->status}'. " .
+                "Cancel the existing request first."
+            );
+        }
+
         $workflow = ApprovalWorkflow::getActiveForType($workflowType);
 
         if (!$workflow) {

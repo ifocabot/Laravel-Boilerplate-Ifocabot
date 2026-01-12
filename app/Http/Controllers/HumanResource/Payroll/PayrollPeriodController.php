@@ -201,6 +201,9 @@ class PayrollPeriodController extends Controller
         try {
             $period = PayrollPeriod::findOrFail($id);
 
+            // ⭐ Guard: Prevent modifications to paid/closed periods
+            $period->guardAgainstLock('regenerate slips');
+
             // Check if already has slips
             if ($period->slips()->count() > 0) {
                 return redirect()

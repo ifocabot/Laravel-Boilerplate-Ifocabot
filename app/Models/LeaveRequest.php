@@ -5,8 +5,10 @@ namespace App\Models;
 use App\Traits\HasApprovalWorkflow;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
+use App\Models\AttendanceAdjustment;
 
 class LeaveRequest extends Model
 {
@@ -40,6 +42,7 @@ class LeaveRequest extends Model
     public const STATUS_APPROVED = 'approved';
     public const STATUS_REJECTED = 'rejected';
     public const STATUS_CANCELLED = 'cancelled';
+    public const STATUS_NEEDS_HR_REVIEW = 'needs_hr_review';
 
     /**
      * ========================================
@@ -81,11 +84,13 @@ class LeaveRequest extends Model
     /**
      * ⭐ Callback when workflow is fully approved
      * This triggers balance deduction and attendance sync
+     * 
+     * FIXED: Now properly handles insufficient balance by setting status to NEEDS_HR_REVIEW
      */
     public function onWorkflowApproved(\App\Models\ApprovalRequest $request): void
     {
-        // Skip if already approved
-        if ($this->status === self::STATUS_APPROVED) {
+        // Skip if already approved or needs review
+        if (in_array($this->status, [self::STATUS_APPROVED, self::STATUS_NEEDS_HR_REVIEW])) {
             return;
         }
 
@@ -93,31 +98,53 @@ class LeaveRequest extends Model
         $lastStep = $request->steps()->whereNotNull('actioned_at')->orderBy('step_order', 'desc')->first();
         $approverId = $lastStep?->approver_id ?? auth()->id();
 
-        // Deduct from balance
+        // Get balance
         $balance = EmployeeLeaveBalance::getOrCreate(
             $this->employee_id,
             $this->leave_type_id,
             $this->start_date->year
         );
 
-        if ($balance->hasSufficientBalance($this->total_days)) {
-            $balance->deduct($this->total_days);
+        // Get total days (from days relation or legacy total_days field)
+        $totalDays = $this->getTotalDays();
+
+        // ⭐ DOMAIN CHECK: Saldo HARUS cukup
+        if (!$balance->hasSufficientBalance($totalDays)) {
+            // ❌ Saldo kurang → NEEDS_HR_REVIEW, TIDAK sync attendance
+            $this->update([
+                'status' => self::STATUS_NEEDS_HR_REVIEW,
+                'approved_by' => $approverId,
+                'approved_at' => now(),
+                'rejection_reason' => 'Saldo cuti tidak mencukupi saat finalisasi approval. Butuh: ' . $totalDays . ' hari, tersedia: ' . $balance->remaining . ' hari.',
+            ]);
+
+            \Log::warning('Leave approval blocked: insufficient balance', [
+                'leave_request_id' => $this->id,
+                'required' => $totalDays,
+                'available' => $balance->remaining,
+            ]);
+            return; // ⭐ STOP - jangan sync ke attendance
         }
 
-        // Update status
+        // ✅ Saldo cukup → Deduct via ledger + APPROVED
+        $balance->deductWithLedger($totalDays, $this->id, $approverId);
+
+        // Approve all days (if using per-day model)
+        $this->days()->update(['status' => LeaveRequestDay::STATUS_APPROVED]);
+
         $this->update([
             'status' => self::STATUS_APPROVED,
             'approved_by' => $approverId,
             'approved_at' => now(),
         ]);
 
-        // ⭐ Sync to attendance - KUNCI INTEGRASI
+        // ⭐ Sync HANYA kalau approved sukses
         $this->syncToAttendance();
 
         \Log::info('Leave request approved via workflow', [
             'leave_request_id' => $this->id,
             'employee_id' => $this->employee_id,
-            'dates' => $this->formatted_date_range,
+            'days_deducted' => $totalDays,
             'attendance_synced' => true,
         ]);
     }
@@ -162,6 +189,23 @@ class LeaveRequest extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /**
+     * Per-day leave records
+     */
+    public function days(): HasMany
+    {
+        return $this->hasMany(LeaveRequestDay::class);
+    }
+
+    /**
+     * Get total days from days relation or fallback to total_days field
+     */
+    public function getTotalDays(): float
+    {
+        $daysSum = $this->days()->sum('day_value');
+        return $daysSum > 0 ? (float) $daysSum : (float) ($this->total_days ?? 0);
     }
 
     /**
@@ -223,6 +267,7 @@ class LeaveRequest extends Model
             self::STATUS_APPROVED => 'Disetujui',
             self::STATUS_REJECTED => 'Ditolak',
             self::STATUS_CANCELLED => 'Dibatalkan',
+            self::STATUS_NEEDS_HR_REVIEW => 'Perlu Review HR',
             default => $this->status,
         };
     }
@@ -234,6 +279,7 @@ class LeaveRequest extends Model
             self::STATUS_APPROVED => 'bg-green-100 text-green-700',
             self::STATUS_REJECTED => 'bg-red-100 text-red-700',
             self::STATUS_CANCELLED => 'bg-gray-100 text-gray-600',
+            self::STATUS_NEEDS_HR_REVIEW => 'bg-orange-100 text-orange-700',
             default => 'bg-gray-100 text-gray-600',
         };
     }
@@ -337,22 +383,27 @@ class LeaveRequest extends Model
      */
     public function cancel(): bool
     {
-        if (!in_array($this->status, [self::STATUS_PENDING, self::STATUS_APPROVED])) {
+        if (!in_array($this->status, [self::STATUS_PENDING, self::STATUS_APPROVED, self::STATUS_NEEDS_HR_REVIEW])) {
             return false;
         }
 
-        // If was approved, restore balance
+        // If was approved, restore balance with ledger
         if ($this->status === self::STATUS_APPROVED) {
             $balance = EmployeeLeaveBalance::forEmployee($this->employee_id)
                 ->forType($this->leave_type_id)
                 ->forYear($this->start_date->year)
                 ->first();
 
-            $balance?->restore($this->total_days);
+            if ($balance) {
+                $balance->restoreWithLedger($this->getTotalDays(), $this->id, auth()->id());
+            }
 
             // Remove from attendance
             $this->removeFromAttendance();
         }
+
+        // Cancel all days
+        $this->days()->update(['status' => LeaveRequestDay::STATUS_CANCELLED]);
 
         $this->update(['status' => self::STATUS_CANCELLED]);
 
@@ -360,27 +411,21 @@ class LeaveRequest extends Model
     }
 
     /**
-     * Sync approved leave to attendance summaries AND employee schedules
+     * ⭐ Sync approved leave to attendance via ledger + recalculate
+     * 
+     * Flow:
+     * 1. Mark schedule (source of truth)
+     * 2. Create adjustment ledger entry
+     * 3. Trigger recalculate (derives status from sources)
      */
     public function syncToAttendance(): void
     {
         $leaveDates = $this->getLeaveDates();
+        $service = app(\App\Services\Attendance\AttendanceSummaryService::class);
+        $statusOverride = $this->mapLeaveTypeToStatus();
 
         foreach ($leaveDates as $date) {
-            // Sync to AttendanceSummary
-            AttendanceSummary::updateOrCreate(
-                [
-                    'employee_id' => $this->employee_id,
-                    'date' => $date,
-                ],
-                [
-                    'status' => 'leave',
-                    'leave_request_id' => $this->id,
-                    'notes' => $this->leaveType->name . ': ' . ($this->reason ?? 'Cuti'),
-                ]
-            );
-
-            // ⭐ Sync to EmployeeSchedule - mark as leave
+            // 1. Mark schedule (source of truth for planning)
             EmployeeSchedule::updateOrCreate(
                 [
                     'employee_id' => $this->employee_id,
@@ -389,19 +434,48 @@ class LeaveRequest extends Model
                 [
                     'is_leave' => true,
                     'leave_request_id' => $this->id,
-                    'shift_id' => null, // Clear shift when on leave
+                    'shift_id' => null,
                     'is_day_off' => false,
                     'is_holiday' => false,
                     'notes' => 'Cuti: ' . $this->leaveType->name,
                 ]
             );
+
+            // 2. Create adjustment ledger entry (regen-safe)
+            AttendanceAdjustment::createForLeave(
+                $this->employee_id,
+                $date,
+                $statusOverride,
+                $this->id,
+                auth()->id()
+            );
+
+            // 3. Trigger recalculate (derives status from all sources)
+            $service->recalculate($this->employee_id, $date);
         }
 
-        \Log::info('Leave synced to schedules', [
+        \Log::info('Leave synced via adjustment ledger', [
             'leave_request_id' => $this->id,
             'employee_id' => $this->employee_id,
-            'dates' => is_array($leaveDates) ? $leaveDates : $leaveDates->toArray(),
+            'dates_count' => count($leaveDates),
+            'status_override' => $statusOverride,
         ]);
+    }
+
+    /**
+     * Map leave type to attendance status code
+     */
+    protected function mapLeaveTypeToStatus(): string
+    {
+        $code = $this->leaveType?->code ?? '';
+
+        return match (strtolower($code)) {
+            'sick', 'sakit' => 'sick',
+            'permission', 'izin' => 'permission',
+            'wfh' => 'wfh',
+            'business_trip', 'dinas' => 'business_trip',
+            default => 'leave',
+        };
     }
 
     /**

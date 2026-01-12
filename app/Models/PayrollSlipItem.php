@@ -97,4 +97,29 @@ class PayrollSlipItem extends Model
             'is_taxable' => $item['is_taxable'] ?? false,
         ]);
     }
+
+    /**
+     * ⭐ Upsert item - prevents duplicates on rerun
+     * Uses updateOrCreate with unique key (payroll_slip_id, component_code)
+     */
+    public static function upsertFromArray(int $slipId, array $item, string $type, int $displayOrder = 0): self
+    {
+        return self::updateOrCreate(
+            [
+                'payroll_slip_id' => $slipId,
+                'component_code' => $item['code'],
+            ],
+            [
+                'payroll_component_id' => $item['component_id'] ?? null,
+                'component_name' => $item['name'],
+                'type' => $type,
+                'category' => $item['category'] ?? null,
+                'base_amount' => $item['base_amount'] ?? $item['amount'],
+                'final_amount' => $item['amount'],
+                'meta' => $item['meta'] ?? null,
+                'display_order' => $displayOrder,
+                'is_taxable' => $item['is_taxable'] ?? false,
+            ]
+        );
+    }
 }

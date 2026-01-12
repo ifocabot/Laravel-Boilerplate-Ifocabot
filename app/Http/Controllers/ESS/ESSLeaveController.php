@@ -4,10 +4,14 @@ namespace App\Http\Controllers\ESS;
 
 use App\Http\Controllers\Controller;
 use App\Models\LeaveRequest;
+use App\Models\LeaveRequestDay;
 use App\Models\LeaveType;
 use App\Models\EmployeeLeaveBalance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+use Carbon\CarbonPeriod;
 
 class ESSLeaveController extends Controller
 {
@@ -26,8 +30,8 @@ class ESSLeaveController extends Controller
             ->where('year', now()->year)
             ->get();
 
-        // Leave requests
-        $leaveRequests = LeaveRequest::with('leaveType')
+        // Leave requests with days
+        $leaveRequests = LeaveRequest::with(['leaveType', 'days'])
             ->where('employee_id', $employee->id)
             ->orderBy('created_at', 'desc')
             ->paginate(10);
@@ -71,30 +75,73 @@ class ESSLeaveController extends Controller
             'reason' => 'required|string|max:500',
         ]);
 
-        // Calculate days
-        $startDate = \Carbon\Carbon::parse($validated['start_date']);
-        $endDate = \Carbon\Carbon::parse($validated['end_date']);
-        $totalDays = $startDate->diffInDays($endDate) + 1;
+        $startDate = Carbon::parse($validated['start_date']);
+        $endDate = Carbon::parse($validated['end_date']);
+
+        // Generate dates in the period
+        $period = CarbonPeriod::create($startDate, $endDate);
+        $dates = [];
+        foreach ($period as $date) {
+            $dates[] = $date->format('Y-m-d');
+        }
+        $totalDays = count($dates);
 
         // Check balance
-        $balance = EmployeeLeaveBalance::where('employee_id', $employee->id)
-            ->where('leave_type_id', $validated['leave_type_id'])
-            ->where('year', now()->year)
-            ->first();
+        $balance = EmployeeLeaveBalance::getOrCreate(
+            $employee->id,
+            $validated['leave_type_id'],
+            $startDate->year
+        );
 
-        if ($balance && $totalDays > $balance->remaining_balance) {
-            return back()->withInput()->with('error', 'Sisa cuti tidak mencukupi.');
+        if ($totalDays > $balance->remaining) {
+            return back()->withInput()->with(
+                'error',
+                "Sisa cuti tidak mencukupi. Tersedia: {$balance->remaining} hari, dibutuhkan: {$totalDays} hari."
+            );
         }
 
-        LeaveRequest::create([
-            'employee_id' => $employee->id,
-            'leave_type_id' => $validated['leave_type_id'],
-            'start_date' => $validated['start_date'],
-            'end_date' => $validated['end_date'],
-            'total_days' => $totalDays,
-            'reason' => $validated['reason'],
-            'status' => 'pending',
-        ]);
+        // ⭐ Check overlap per day
+        $overlappingDates = LeaveRequestDay::getOverlappingDates($employee->id, $dates);
+        if (!empty($overlappingDates)) {
+            $formattedDates = array_map(fn($d) => Carbon::parse($d)->format('d M Y'), $overlappingDates);
+            return back()->withInput()->with(
+                'error',
+                'Tanggal berikut sudah ada cuti yang disetujui: ' . implode(', ', $formattedDates)
+            );
+        }
+
+        // Create leave request with per-day records
+        DB::transaction(function () use ($validated, $employee, $startDate, $endDate, $totalDays, $dates) {
+            $leaveRequest = LeaveRequest::create([
+                'employee_id' => $employee->id,
+                'leave_type_id' => $validated['leave_type_id'],
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'total_days' => $totalDays,
+                'reason' => $validated['reason'],
+                'status' => LeaveRequest::STATUS_PENDING,
+            ]);
+
+            // ⭐ Create per-day records
+            foreach ($dates as $date) {
+                LeaveRequestDay::create([
+                    'leave_request_id' => $leaveRequest->id,
+                    'date' => $date,
+                    'day_value' => 1.0, // Full day default
+                    'status' => LeaveRequestDay::STATUS_PENDING,
+                ]);
+            }
+
+            // Submit to approval workflow if available
+            try {
+                $leaveRequest->submitForApproval();
+            } catch (\Exception $e) {
+                \Log::warning('Leave approval workflow not configured', [
+                    'leave_id' => $leaveRequest->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        });
 
         return redirect()->route('ess.leave.index')->with('success', 'Pengajuan cuti berhasil dikirim.');
     }
@@ -106,11 +153,18 @@ class ESSLeaveController extends Controller
 
         $leaveRequest = LeaveRequest::where('employee_id', $employee->id)
             ->where('id', $id)
-            ->where('status', 'pending')
+            ->whereIn('status', [
+                LeaveRequest::STATUS_PENDING,
+                LeaveRequest::STATUS_NEEDS_HR_REVIEW
+            ])
             ->firstOrFail();
 
-        $leaveRequest->update(['status' => 'cancelled']);
+        // Use the model's cancel method which handles ledger
+        if ($leaveRequest->cancel()) {
+            return back()->with('success', 'Pengajuan cuti berhasil dibatalkan.');
+        }
 
-        return back()->with('success', 'Pengajuan cuti berhasil dibatalkan.');
+        return back()->with('error', 'Tidak dapat membatalkan pengajuan cuti.');
     }
 }
+

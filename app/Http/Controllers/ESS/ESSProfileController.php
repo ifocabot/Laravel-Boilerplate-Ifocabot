@@ -14,6 +14,7 @@ class ESSProfileController extends Controller
     public function index()
     {
         $user = Auth::user();
+
         $employee = Employee::with([
             'currentCareer.position',
             'currentCareer.department',
@@ -21,22 +22,23 @@ class ESSProfileController extends Controller
             'currentCareer.branch',
             'families',
             'contracts'
-        ])->find($user->employee_id);
+        ])->where('user_id', $user->id)->first();
 
         if (!$employee) {
-            return redirect()->route('ess.dashboard')->with('error', 'Data karyawan tidak ditemukan.');
+            abort(403, 'Akun ini tidak terhubung dengan data karyawan.');
         }
 
         return view('admin.ess.profile.index', compact('employee'));
     }
 
+
     public function edit()
     {
         $user = Auth::user();
-        $employee = Employee::with('families')->find($user->employee_id);
+        $employee = Employee::with('families')->where('user_id', $user->id)->first();
 
         if (!$employee) {
-            return redirect()->route('ess.dashboard')->with('error', 'Data karyawan tidak ditemukan.');
+            abort(403, 'Akun ini tidak terhubung dengan data karyawan.');
         }
 
         return view('admin.ess.profile.edit', compact('employee'));
@@ -45,10 +47,10 @@ class ESSProfileController extends Controller
     public function update(Request $request)
     {
         $user = Auth::user();
-        $employee = Employee::find($user->employee_id);
+        $employee = Employee::where('user_id', $user->id)->first();
 
         if (!$employee) {
-            return redirect()->route('ess.dashboard')->with('error', 'Data karyawan tidak ditemukan.');
+            abort(403, 'Akun ini tidak terhubung dengan data karyawan.');
         }
 
         $validated = $request->validate([
@@ -72,10 +74,10 @@ class ESSProfileController extends Controller
         ]);
 
         $user = Auth::user();
-        $employee = Employee::find($user->employee_id);
+        $employee = Employee::where('user_id', $user->id)->first();
 
         if (!$employee) {
-            return back()->with('error', 'Data karyawan tidak ditemukan.');
+            abort(403, 'Akun ini tidak terhubung dengan data karyawan.');
         }
 
         // Delete old photo
